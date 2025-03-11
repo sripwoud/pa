@@ -1,0 +1,56 @@
+#!/bin/sh
+
+# Get a one-time password, or add a OTP secret to your pass-otp store.
+
+# The assumption of this script is that all otp passwords are stored with the
+# suffix `-otp`. This script automatically appends newly added otps as such.
+
+# For OTP passwords to be generated properly, it is important for the local
+# computer to have its time properly synced. This can be done with the command
+# below which requires the package `ntp`.
+
+ifinstalled pass paotp || exit 1
+
+dir="$XDG_DATA_HOME/pa/passwords"
+
+choice="$({
+  echo "🆕add"
+  echo "🕙sync-time"
+  ls "$dir"/*-otp.age
+} | sed "s/.*\///;s/-otp.age//" | dmenu -p "Pick a 2FA:")"
+
+case $choice in
+🆕add)
+  ifinstalled maim zbar || exit 1
+
+  temp=$(mktemp -p "$XDG_RUNTIME_DIR" --suffix=.png)
+  otp="otp-test-script"
+  trap 'rm -f $temp; pass rm -f $otp' HUP INT QUIT TERM PWR EXIT
+
+  notify-send "Scan the image." "Scan the OTP QR code."
+
+  maim -s "$temp" || exit 1
+  info="$(zbarimg -q "$temp")"
+  echo $info >~/.local/log/debug.log
+  notify-send $info
+  info="${info#QR-Code:}"
+
+  if echo "$info" | paotp insert "$otp"; then
+    while true; do
+      export name="$(echo | dmenu -p "Give this One Time Password a one-word name:")"
+      echo "$name" | grep -q -- "^[A-z0-9-]\+$" && break
+    done
+    mv "$dir/$otp.age" "$dir/$name-otp.age"
+    notify-send "Successfully added." "$name-otp has been created."
+  else
+    notify-send "No OTP data found." "Try to scan the image again more precisely."
+  fi
+  ;;
+🕙sync-time)
+  ifinstalled ntp || exit 1
+  notify-send -u low "🕙 Synchronizing Time..." "Synching time with remote NTP servers..."
+  updatedata="$(sudo ntpdate pool.ntp.org)" &&
+    notify-send -u low "🕙 Synchronizing Time..." "Done. Time changed by ${updatedata#*offset }"
+  ;;
+*) paotp c ${choice}-otp | xdotool type --clearmodifiers --file - ;;
+esac
