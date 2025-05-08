@@ -4,7 +4,7 @@
 
 pw_add() {
   if yn "generate a password?"; then
-    pass=$(rand_chars "${PA_LENGTH:-50}" "${PA_PATTERN:-A-Za-z0-9-_}") ||
+    pass=$(rand_chars "$PA_LENGTH" "$PA_PATTERN") ||
       die "couldn't generate a password"
   else
     # 'sread()' is a simple wrapper function around 'read'
@@ -87,6 +87,13 @@ pw_del() {
 
     $git_enabled && git_add_and_commit "./$name.age" "delete '$name'"
   }
+}
+
+pw_rand() {
+  password=$(rand_chars "${1:-$PA_LENGTH}" "${2:-$PA_PATTERN}")
+  echo "$password"
+  echo -n "$password" | xclip -selection clipboard
+  echo "Password copied to clipboard!"
 }
 
 pw_show() {
@@ -180,12 +187,13 @@ usage() {
     a simple password manager
 
   commands:
-    [a]dd  [name] - Add a password entry.
-    [d]el  [name] - Delete a password entry.
-    [e]dit [name] - Edit a password entry with ${EDITOR:-vi}.
-    [g]it  [cmd]  - Run git command in the password dir.
-    [l]ist        - List all entries.
-    [s]how [name] - Show password for an entry.
+    [a]dd  [name]             - Add a password entry.
+    [d]el  [name]             - Delete a password entry.
+    [e]dit [name]             - Edit a password entry with ${EDITOR:-vi}.
+    [g]it  [cmd]              - Run git command in the password dir.
+    [l]ist                    - List all entries.
+    [s]how [name]             - Show password for an entry.
+    [r]and [length] [pattern] - Generate a random password.
 
   env vars:
     data directory:   export PA_DIR=~/.local/share/pa
@@ -204,6 +212,8 @@ main() {
     die "age-keygen not found, install per https://age-encryption.org"
 
   : "${PA_DIR:=${XDG_DATA_HOME:-$HOME/.local/share}/pa}"
+  : "${PA_LENGTH:=50}"
+  : "${PA_PATTERN:=A-Za-z0-9-_}"
 
   glob "$PA_DIR" '/*' ||
     die "PA_DIR must be an absolute path (got '$PA_DIR')"
@@ -302,6 +312,7 @@ main() {
   e*) pw_edit ;;
   l*) pw_list ;;
   s*) pw_show ;;
+  r*) pw_rand "$@" ;;
   *) usage ;;
   esac
 }
