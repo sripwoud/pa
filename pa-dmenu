@@ -2,8 +2,23 @@
 #
 # prompt for a password via dmenu
 # generate new password if it doesn't exist
-# then type the selected password via xdotool
+# then type the selected password (or OTP) via xdotool
 
-name=$(pa l | dmenu "$@") || exit
-{ pa s "$name" || { printf y | pa a "$name" >/dev/null && pa s "$name"; }; } |
+show() {
+  if [[ "$1" == *-otp ]]; then
+    paotp c "$1"
+  else
+    pa s "$1" || { printf y | pa a "$1" >/dev/null && pa s "$1"; }
+  fi
+}
+
+paste() {
   head -n 1 | tr -d '\n' | xdotool type --clearmodifiers --file -
+}
+
+main() {
+  local name=$(pa l | dmenu "$@") || exit
+  show "$name" | paste
+}
+
+main
