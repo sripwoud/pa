@@ -101,6 +101,10 @@ pw_show() {
     die "couldn't decrypt $name.age"
 }
 
+pw_qr() {
+  pw_show | qrencode -t utf8
+}
+
 pw_list() {
   find . -type f -name \*.age | sed 's/..//;s/\.age$//' | sort
 }
@@ -194,6 +198,7 @@ usage() {
     [l]ist                    - List all entries.
     [s]how [name]             - Show password for an entry.
     [r]and [length] [pattern] - Generate a random password.
+    [q]r [name]               - Show password as QR code.
 
   env vars:
     data directory:   export PA_DIR=~/.local/share/pa
@@ -313,6 +318,7 @@ main() {
   l*) pw_list ;;
   s*) pw_show ;;
   r*) pw_rand "$@" ;;
+  q*) pw_qr ;;
   *) usage ;;
   esac
 }

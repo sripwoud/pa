@@ -18,11 +18,12 @@ _pa() {
                 'git:Run git command in the password dir'
                 'list:List all entries'
                 'show:Show password for an entry'
+                'qr:Generate QR code for an entry'
             )
             _describe 'command' commands
             ;;
         name)
-            if [[ $words[2] == (add|del|edit|show)* ]]; then
+            if [[ $words[2] == (add|del|edit|show|qr)* ]]; then
                 names=(${(f)"$(_call_program names pa l)"})
                 _describe 'name' names
             fi
