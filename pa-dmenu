@@ -5,11 +5,14 @@
 # then type the selected password (or OTP) via xdotool
 
 show() {
-  if [[ "$1" == *-otp ]]; then
+  case "$1" in
+  *-otp)
     paotp c "$1"
-  else
+    ;;
+  *)
     pa s "$1" || { printf y | pa a "$1" >/dev/null && pa s "$1"; }
-  fi
+    ;;
+  esac
 }
 
 paste() {
