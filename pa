@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env bash
 #
 # pa - a simple password manager
 
@@ -7,19 +7,15 @@ pw_add() {
     pass=$(rand_chars "$PA_LENGTH" "$PA_PATTERN") ||
       die "couldn't generate a password"
   else
-    # 'sread()' is a simple wrapper function around 'read'
-    # to prevent user input from being printed to the terminal.
     sread pass "enter a password"
 
-    [ "$pass" ] ||
+    [[ -n $pass ]] ||
       die "password can't be empty"
 
     sread pass2 "enter a password (again)"
 
-    # Disable this check as we dynamically populate the two
-    # passwords using the 'sread()' function.
     # shellcheck disable=2154
-    [ "$pass" = "$pass2" ] ||
+    [[ $pass == "$pass2" ]] ||
       die "passwords don't match"
   fi
 
@@ -45,21 +41,21 @@ pw_edit() {
   # Fall back to /tmp - /dev/shm is Linux-only & /tmp
   # and shared memory space on other operating systems
   # have non-standard methods of setup/access.
-  [ -w /dev/shm ] || tmpdir=/tmp
+  [[ -w /dev/shm ]] || tmpdir=/tmp
 
   tmpfile=$(printf 'mkstemp(%s/pa.XXXXXX)' $tmpdir | m4) ||
     die "couldn't create a shared memory file"
 
   trap 'rm -f "$tmpfile"' EXIT
 
-  if [ ! -f "$name.age" ]; then new=true; else new=false && {
+  if [[ ! -f $name.age ]]; then new=true; else new=false && {
     decrypt -o "$tmpfile" "./$name.age"
   }; fi
 
   ${EDITOR:-vi} "$tmpfile" ||
     die "EDITOR exited non-zero"
 
-  [ -s "$tmpfile" ] && {
+  [[ -s $tmpfile ]] && {
     mkdir -p "$(dirname "./$name")" ||
       die "couldn't create category '$(dirname "./$name" | cut -c3-)'"
 
@@ -84,7 +80,7 @@ pw_del() {
 pw_rand() {
   password=$(rand_chars "${1:-$PA_LENGTH}" "${2:-$PA_PATTERN}")
   echo "$password"
-  echo -n "$password" | xclip -selection clipboard
+  printf '%s' "$password" | xclip -selection clipboard
   echo "Password copied to clipboard!"
 }
 
@@ -120,29 +116,33 @@ otp_check_tools() {
 otp_parse_uri() {
   local uri rest query param key value
 
+  # shellcheck disable=2034
   otp_uri="" otp_type="" otp_label="" otp_secret=""
+  # shellcheck disable=2034
   otp_algorithm="SHA1" otp_digits="6" otp_period="30"
   otp_counter="0" otp_issuer=""
 
   uri="$1"
+  # shellcheck disable=2034
   otp_uri="$uri"
 
-  glob "$uri" 'otpauth://*' ||
+  [[ $uri == otpauth://* ]] ||
     die "invalid OTP URI: must start with otpauth://"
 
-  rest=$(printf '%s' "$uri" | sed 's|^otpauth://||')
-  otp_type=$(printf '%s' "$rest" | cut -d'/' -f1)
-  rest=$(printf '%s' "$rest" | cut -d'/' -f2-)
-  otp_label=$(printf '%s' "$rest" | cut -d'?' -f1)
-  query=$(printf '%s' "$rest" | cut -d'?' -f2-)
+  rest="${uri#otpauth://}"
+  otp_type="${rest%%/*}"
+  rest="${rest#*/}"
+  otp_label="${rest%%\?*}"
+  query="${rest#*\?}"
 
-  for param in $(printf '%s' "$query" | tr '&' ' '); do
-    key=$(printf '%s' "$param" | cut -d'=' -f1)
-    value=$(printf '%s' "$param" | cut -d'=' -f2-)
+  for param in ${query//&/ }; do
+    key="${param%%=*}"
+    value="${param#*=}"
+    # shellcheck disable=2034
     case "$key" in
     secret) otp_secret="$value" ;;
     digits) otp_digits="$value" ;;
-    algorithm) otp_algorithm=$(printf '%s' "$value" | tr '[:lower:]' '[:upper:]') ;;
+    algorithm) otp_algorithm="${value^^}" ;;
     period) otp_period="$value" ;;
     counter) otp_counter="$value" ;;
     issuer) otp_issuer="$value" ;;
@@ -150,13 +150,13 @@ otp_parse_uri() {
     esac
   done
 
-  [ -n "$otp_secret" ] || die "OTP URI missing secret"
+  [[ -n $otp_secret ]] || die "OTP URI missing secret"
 }
 
 otp_insert() {
-  local uri ans
+  local uri
 
-  [ -f "./$name.age" ] && {
+  [[ -f ./$name.age ]] && {
     yn "overwrite otp '$name'?" || die "aborted"
   }
 
@@ -175,11 +175,11 @@ otp_insert() {
 otp_code() {
   local uri otp_line otp_code new_counter new_uri
 
-  [ -f "./$name.age" ] || die "otp '$name' doesn't exist"
+  [[ -f ./$name.age ]] || die "otp '$name' doesn't exist"
 
   uri=$(decrypt "./$name.age")
-  otp_line=$(printf '%s\n' "$uri" | grep '^otpauth://')
-  [ -n "$otp_line" ] || die "no OTP URI found in '$name'"
+  otp_line=$(grep '^otpauth://' <<<"$uri")
+  [[ -n $otp_line ]] || die "no OTP URI found in '$name'"
 
   otp_parse_uri "$otp_line"
 
@@ -196,7 +196,7 @@ otp_code() {
       die "oathtool failed"
     new_uri=$(printf 'otpauth://hotp/%s?secret=%s&counter=%s' \
       "$otp_label" "$otp_secret" "$new_counter")
-    [ -n "$otp_issuer" ] &&
+    [[ -n $otp_issuer ]] &&
       new_uri=$(printf '%s&issuer=%s' "$new_uri" "$otp_issuer")
     printf '%s\n' "$new_uri" | encrypt "./$name.age"
     $git_enabled && git_add_and_commit "./$name.age" "increment HOTP counter for '$name'"
@@ -210,11 +210,11 @@ otp_code() {
 otp_uri() {
   local uri otp_line
 
-  [ -f "./$name.age" ] || die "otp '$name' doesn't exist"
+  [[ -f ./$name.age ]] || die "otp '$name' doesn't exist"
 
   uri=$(decrypt "./$name.age")
-  otp_line=$(printf '%s\n' "$uri" | grep '^otpauth://')
-  [ -n "$otp_line" ] || die "no OTP URI found in '$name'"
+  otp_line=$(grep '^otpauth://' <<<"$uri")
+  [[ -n $otp_line ]] || die "no OTP URI found in '$name'"
 
   printf '%s\n' "$otp_line"
 }
@@ -257,62 +257,32 @@ rand_chars() {
   # 'tr' command to translate the random bytes into a
   # configurable character set.
   #
-  # The 'dd' command is then used to read only the desired length.
-  #
   # Regarding usage of '/dev/urandom' instead of '/dev/random'.
   # See: https://www.2uo.de/myths-about-urandom
   #
   # $1 = number of chars to receive
   # $2 = filter for the chars
-  LC_ALL=C tr -dc "$2" </dev/urandom | dd ibs=1 obs=1 count="$1" 2>/dev/null
+  local result
+  IFS= read -rN "$1" result < <(LC_ALL=C tr -dc "$2" </dev/urandom)
+  printf '%s' "$result"
 }
 
 yn() {
   printf '%s [y/N]: ' "$1"
 
-  # Enable raw input to allow for a single byte to be read from
-  # stdin without needing to wait for the user to press Return.
-  [ -t 0 ] && stty -echo -icanon
-
-  # Read a single byte from stdin using 'dd'. POSIX 'read' has
-  # no support for single/'N' byte based input from the user.
-  answer=$(dd ibs=1 count=1 2>/dev/null)
-
-  # Disable raw input, leaving the terminal how we *should*
-  # have found it.
-  [ -t 0 ] && stty echo icanon
+  read -rn1 answer
 
   printf '%s\n' "$answer"
 
-  # Handle the answer here directly, enabling this function's
-  # return status to be used in place of checking for '[yY]'
-  # throughout this program.
-  glob "$answer" '[yY]'
+  [[ $answer == [yY] ]]
 }
 
 sread() {
   printf '%s: ' "$2"
 
-  # Disable terminal printing while the user inputs their
-  # password. POSIX 'read' has no '-s' flag which would
-  # effectively do the same thing.
-  [ -t 0 ] && stty -echo
-  read -r "$1"
-  [ -t 0 ] && stty echo
+  read -rs "$1"
 
   printf '\n'
-}
-
-glob() {
-  # This is a simple wrapper around a case statement to allow
-  # for simple string comparisons against globs.
-  #
-  # Example: if glob "Hello World" '* World'; then
-  #
-  # Disable this warning as it is the intended behavior.
-  # shellcheck disable=2254
-  case $1 in $2) return 0 ;; esac
-  return 1
 }
 
 die() {
@@ -367,7 +337,7 @@ main() {
   : "${PA_LENGTH:=50}"
   : "${PA_PATTERN:=A-Za-z0-9-_}"
 
-  glob "$PA_DIR" '/*' ||
+  [[ $PA_DIR == /* ]] ||
     die "PA_DIR must be an absolute path (got '$PA_DIR')"
 
   identities_file=$PA_DIR/identities
@@ -384,9 +354,9 @@ main() {
   set -f
 
   git_enabled=false
-  [ -z "${PA_NOGIT+x}" ] && command -v git >/dev/null 2>&1 && git_enabled=true
+  [[ -z ${PA_NOGIT+x} ]] && command -v git >/dev/null 2>&1 && git_enabled=true
 
-  $git_enabled && [ ! -d .git ] && {
+  $git_enabled && [[ ! -d .git ]] && {
     git init -q
 
     # Put something in user config if it's not set globally,
@@ -408,21 +378,40 @@ main() {
   command=$1
   shift
 
-  glob "$command" 'g*' && {
+  [[ $command == g* ]] && {
     git "$@"
     exit $?
   }
 
   # OTP shortcuts: pa oi, pa oc, pa ou, pa ov
   case $command in
-  oi) otp_check_tools; name=$(printf %s "$*" | LC_ALL=C tr -d '[:cntrl:]'); otp_insert; exit $? ;;
-  oc) otp_check_tools; name=$(printf %s "$*" | LC_ALL=C tr -d '[:cntrl:]'); otp_code; exit $? ;;
-  ou) otp_check_tools; name=$(printf %s "$*" | LC_ALL=C tr -d '[:cntrl:]'); otp_uri; exit $? ;;
-  ov) otp_check_tools; otp_validate "$1"; exit $? ;;
+  oi)
+    otp_check_tools
+    name=$(printf %s "$*" | LC_ALL=C tr -d '[:cntrl:]')
+    otp_insert
+    exit $?
+    ;;
+  oc)
+    otp_check_tools
+    name=$(printf %s "$*" | LC_ALL=C tr -d '[:cntrl:]')
+    otp_code
+    exit $?
+    ;;
+  ou)
+    otp_check_tools
+    name=$(printf %s "$*" | LC_ALL=C tr -d '[:cntrl:]')
+    otp_uri
+    exit $?
+    ;;
+  ov)
+    otp_check_tools
+    otp_validate "$1"
+    exit $?
+    ;;
   esac
 
   # OTP subcommand: pa otp <cmd> [name]
-  glob "$command" 'o*' && {
+  [[ $command == o* ]] && {
     otp_check_tools
     otp_cmd=$1
     shift
@@ -442,23 +431,23 @@ main() {
   # so that a name can always be safely displayed.
   name=$(printf %s "$*" | LC_ALL=C tr -d '[:cntrl:]')
 
-  glob "$command" '[ades]*' && [ -z "$name" ] &&
+  [[ $command == [ades]* ]] && [[ -z $name ]] &&
     die "missing [name] argument"
 
-  glob "$name" '/*' || glob "$name" '*/' &&
+  [[ $name == /* ]] || [[ $name == */ ]] &&
     die "name can't start or end with '/'"
 
-  glob "$name" '../*' || glob "$name" '*/../*' &&
+  [[ $name == ../* ]] || [[ $name == */../* ]] &&
     die "category went out of bounds"
 
-  glob "$command" 'a*' && [ -f "$name.age" ] &&
+  [[ $command == a* ]] && [[ -f $name.age ]] &&
     die "password '$name' already exists"
 
-  glob "$command" '[ds]*' && [ ! -f "$name.age" ] &&
+  [[ $command == [ds]* ]] && [[ ! -f $name.age ]] &&
     die "password '$name' doesn't exist"
 
   if command -v age-plugin-yubikey >/dev/null 2>&1; then
-    [ ! -f "$identities_file" ] && [ ! -f "$recipients_file" ] && {
+    [[ ! -f $identities_file ]] && [[ ! -f $recipients_file ]] && {
       yn "generate yubikey identity?" && {
         age-plugin-yubikey \
           --generate \
@@ -473,14 +462,14 @@ main() {
     }
   fi
 
-  [ -f "$identities_file" ] ||
+  [[ -f $identities_file ]] ||
     $age_keygen -o "$identities_file" 2>/dev/null
 
-  [ -f "$recipients_file" ] ||
+  [[ -f $recipients_file ]] ||
     $age_keygen -y -o "$recipients_file" "$identities_file" 2>/dev/null
 
   # Ensure that we leave the terminal in a usable state on Ctrl+C.
-  [ -t 0 ] && trap 'stty echo icanon; trap - INT; kill -s INT 0' INT
+  [[ -t 0 ]] && trap 'trap - INT; kill -s INT 0' INT
 
   case $command in
   a*) pw_add ;;
@@ -502,4 +491,4 @@ set +x
 # only the current user.
 umask 077
 
-[ "$1" ] || usage && main "$@"
+[[ $1 ]] || usage && main "$@"
