@@ -112,6 +112,138 @@ decrypt() {
     die "decryption failed"
 }
 
+otp_check_tools() {
+  command -v oathtool >/dev/null 2>&1 ||
+    die "oathtool not found, install oath-toolkit"
+}
+
+otp_parse_uri() {
+  local uri rest query param key value
+
+  otp_uri="" otp_type="" otp_label="" otp_secret=""
+  otp_algorithm="SHA1" otp_digits="6" otp_period="30"
+  otp_counter="0" otp_issuer=""
+
+  uri="$1"
+  otp_uri="$uri"
+
+  glob "$uri" 'otpauth://*' ||
+    die "invalid OTP URI: must start with otpauth://"
+
+  rest=$(printf '%s' "$uri" | sed 's|^otpauth://||')
+  otp_type=$(printf '%s' "$rest" | cut -d'/' -f1)
+  rest=$(printf '%s' "$rest" | cut -d'/' -f2-)
+  otp_label=$(printf '%s' "$rest" | cut -d'?' -f1)
+  query=$(printf '%s' "$rest" | cut -d'?' -f2-)
+
+  for param in $(printf '%s' "$query" | tr '&' ' '); do
+    key=$(printf '%s' "$param" | cut -d'=' -f1)
+    value=$(printf '%s' "$param" | cut -d'=' -f2-)
+    case "$key" in
+    secret) otp_secret="$value" ;;
+    digits) otp_digits="$value" ;;
+    algorithm) otp_algorithm=$(printf '%s' "$value" | tr '[:lower:]' '[:upper:]') ;;
+    period) otp_period="$value" ;;
+    counter) otp_counter="$value" ;;
+    issuer) otp_issuer="$value" ;;
+    *) ;;
+    esac
+  done
+
+  [ -n "$otp_secret" ] || die "OTP URI missing secret"
+}
+
+otp_insert() {
+  local uri ans
+
+  [ -f "./$name.age" ] && {
+    yn "overwrite otp '$name'?" || die "aborted"
+  }
+
+  printf 'enter OTP URI: '
+  read -r uri || die "no input"
+
+  otp_parse_uri "$uri"
+
+  printf '%s\n' "$uri" | encrypt "./$name.age"
+
+  printf '%s\n' "saved otp '$name' to the store."
+
+  $git_enabled && git_add_and_commit "./$name.age" "add otp '$name'"
+}
+
+otp_code() {
+  local uri otp_line otp_code new_counter new_uri
+
+  [ -f "./$name.age" ] || die "otp '$name' doesn't exist"
+
+  uri=$(decrypt "./$name.age")
+  otp_line=$(printf '%s\n' "$uri" | grep '^otpauth://')
+  [ -n "$otp_line" ] || die "no OTP URI found in '$name'"
+
+  otp_parse_uri "$otp_line"
+
+  case "$otp_type" in
+  totp)
+    otp_code=$(oathtool --totp -b "$otp_secret" \
+      --digits="$otp_digits" --time-step-size="$otp_period") ||
+      die "oathtool failed"
+    ;;
+  hotp)
+    new_counter=$((otp_counter + 1))
+    otp_code=$(oathtool --hotp -b --counter="$new_counter" \
+      "$otp_secret" --digits="$otp_digits") ||
+      die "oathtool failed"
+    new_uri=$(printf 'otpauth://hotp/%s?secret=%s&counter=%s' \
+      "$otp_label" "$otp_secret" "$new_counter")
+    [ -n "$otp_issuer" ] &&
+      new_uri=$(printf '%s&issuer=%s' "$new_uri" "$otp_issuer")
+    printf '%s\n' "$new_uri" | encrypt "./$name.age"
+    $git_enabled && git_add_and_commit "./$name.age" "increment HOTP counter for '$name'"
+    ;;
+  *) die "unsupported OTP type: $otp_type" ;;
+  esac
+
+  printf '%s\n' "$otp_code"
+}
+
+otp_uri() {
+  local uri otp_line
+
+  [ -f "./$name.age" ] || die "otp '$name' doesn't exist"
+
+  uri=$(decrypt "./$name.age")
+  otp_line=$(printf '%s\n' "$uri" | grep '^otpauth://')
+  [ -n "$otp_line" ] || die "no OTP URI found in '$name'"
+
+  printf '%s\n' "$otp_line"
+}
+
+otp_validate() {
+  otp_parse_uri "$1"
+  printf '%s\n' "valid OTP URI."
+}
+
+otp_usage() {
+  printf %s "\
+  pa otp
+    manage one-time passwords
+
+  commands:
+    [i]nsert [name]  - Add an OTP entry (reads URI from stdin).
+    [c]ode   [name]  - Generate a one-time code.
+    [u]ri    [name]  - Show the stored OTP URI.
+    [v]alidate [uri] - Validate an OTP URI.
+
+  shortcuts:
+    pa oi [name]     - Same as pa otp insert.
+    pa oc [name]     - Same as pa otp code.
+    pa ou [name]     - Same as pa otp uri.
+    pa ov [uri]      - Same as pa otp validate.
+"
+  exit 0
+}
+
 git_add_and_commit() {
   git add "$1" ||
     die "couldn't git add $1"
@@ -203,6 +335,18 @@ usage() {
     [r]and [length] [pattern] - Generate a random password.
     [q]r [name]               - Show password as QR code.
 
+  otp commands:
+    [o]tp [i]nsert [name]     - Add an OTP entry (reads URI from stdin).
+    [o]tp [c]ode   [name]     - Generate a one-time code.
+    [o]tp [u]ri    [name]     - Show the stored OTP URI.
+    [o]tp [v]alidate [uri]    - Validate an OTP URI.
+
+  otp shortcuts:
+    oi [name]                 - Same as otp insert.
+    oc [name]                 - Same as otp code.
+    ou [name]                 - Same as otp uri.
+    ov [uri]                  - Same as otp validate.
+
   env vars:
     data directory:   export PA_DIR=~/.local/share/pa
     password length:  export PA_LENGTH=50
@@ -266,6 +410,30 @@ main() {
 
   glob "$command" 'g*' && {
     git "$@"
+    exit $?
+  }
+
+  # OTP shortcuts: pa oi, pa oc, pa ou, pa ov
+  case $command in
+  oi) otp_check_tools; name=$(printf %s "$*" | LC_ALL=C tr -d '[:cntrl:]'); otp_insert; exit $? ;;
+  oc) otp_check_tools; name=$(printf %s "$*" | LC_ALL=C tr -d '[:cntrl:]'); otp_code; exit $? ;;
+  ou) otp_check_tools; name=$(printf %s "$*" | LC_ALL=C tr -d '[:cntrl:]'); otp_uri; exit $? ;;
+  ov) otp_check_tools; otp_validate "$1"; exit $? ;;
+  esac
+
+  # OTP subcommand: pa otp <cmd> [name]
+  glob "$command" 'o*' && {
+    otp_check_tools
+    otp_cmd=$1
+    shift
+    name=$(printf %s "$*" | LC_ALL=C tr -d '[:cntrl:]')
+    case $otp_cmd in
+    i*) otp_insert ;;
+    c*) otp_code ;;
+    u*) otp_uri ;;
+    v*) otp_validate "$name" ;;
+    *) otp_usage ;;
+    esac
     exit $?
   }
 
