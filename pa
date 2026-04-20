@@ -26,17 +26,11 @@ pw_add() {
   mkdir -p "$(dirname "./$name")" ||
     die "couldn't create category '$(dirname "./$name" | cut -c3-)'"
 
-  # Use 'age' to store the password in an encrypted file.
   # A heredoc is used here instead of a 'printf' to avoid
   # leaking the password through the '/proc' filesystem.
-  #
-  # Heredocs are sometimes implemented via temporary files,
-  # however this is typically done using 'mkstemp()' which
-  # is more secure than a leak in '/proc'.
-  $age --encrypt -R "$recipients_file" -o "./$name.age" <<-EOF ||
+  encrypt "./$name.age" <<-EOF
 		$pass
 	EOF
-    die "couldn't encrypt $name.age"
 
   printf '%s\n' "saved '$name' to the store."
 
@@ -59,8 +53,7 @@ pw_edit() {
   trap 'rm -f "$tmpfile"' EXIT
 
   if [ ! -f "$name.age" ]; then new=true; else new=false && {
-    $age --decrypt -i "$identities_file" -o "$tmpfile" "./$name.age" ||
-      die "couldn't decrypt $name.age"
+    decrypt -o "$tmpfile" "./$name.age"
   }; fi
 
   ${EDITOR:-vi} "$tmpfile" ||
@@ -70,8 +63,7 @@ pw_edit() {
     mkdir -p "$(dirname "./$name")" ||
       die "couldn't create category '$(dirname "./$name" | cut -c3-)'"
 
-    $age --encrypt -R "$recipients_file" -o "./$name.age" "$tmpfile" ||
-      die "couldn't encrypt $name.age"
+    encrypt "./$name.age" "$tmpfile"
 
     if $new; then printf '%s\n' "saved '$name' to the store."; fi
 
@@ -97,8 +89,7 @@ pw_rand() {
 }
 
 pw_show() {
-  $age --decrypt -i "$identities_file" "./$name.age" ||
-    die "couldn't decrypt $name.age"
+  decrypt "./$name.age"
 }
 
 pw_qr() {
@@ -107,6 +98,18 @@ pw_qr() {
 
 pw_list() {
   find . -type f -name \*.age | sed 's/..//;s/\.age$//' | sort
+}
+
+encrypt() {
+  local outfile="$1"
+  shift
+  $age --encrypt -R "$recipients_file" -o "$outfile" "$@" ||
+    die "couldn't encrypt $outfile"
+}
+
+decrypt() {
+  $age --decrypt -i "$identities_file" "$@" ||
+    die "decryption failed"
 }
 
 git_add_and_commit() {
