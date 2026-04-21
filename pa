@@ -530,4 +530,5 @@ set +x
 # only the current user.
 umask 077
 
-[[ $1 ]] || usage && main "$@"
+[[ $1 ]] || usage
+main "$@"
