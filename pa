@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -o pipefail
 #
 # pa - a simple password manager
 
