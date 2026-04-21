@@ -43,7 +43,7 @@ pw_edit() {
   # have non-standard methods of setup/access.
   [[ -w /dev/shm ]] || tmpdir=/tmp
 
-  tmpfile=$(printf 'mkstemp(%s/pa.XXXXXX)' $tmpdir | m4) ||
+  tmpfile=$(mktemp "${tmpdir}/pa.XXXXXX") ||
     die "couldn't create a shared memory file"
 
   trap 'rm -f "$tmpfile"' EXIT
