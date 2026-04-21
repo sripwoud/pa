@@ -93,7 +93,23 @@ pw_qr() {
 }
 
 pw_list() {
-  find . -type f -name \*.age | sed 's/..//;s/\.age$//' | sort
+  local dir="."
+  [[ -n $name ]] && dir="./$name"
+  find "$dir" -type f -name \*.age | sed 's|^\./||;s/\.age$//' | sort
+}
+
+pw_move() {
+  mkdir -p "$(dirname "./$name")" ||
+    die "couldn't create category '$(dirname "./$name" | cut -c3-)'"
+
+  mv -- "./$src.age" "./$name.age"
+
+  rmdir -p "$(dirname "./$src")" 2>/dev/null || :
+
+  if $git_enabled; then
+    git rm -q "./$src.age"
+    git_add_and_commit "./$name.age" "move '$src' to '$name'"
+  fi
 }
 
 encrypt() {
@@ -300,7 +316,8 @@ usage() {
     [d]el  [name]             - Delete a password entry.
     [e]dit [name]             - Edit a password entry with ${EDITOR:-vi}.
     [g]it  [cmd]              - Run git command in the password dir.
-    [l]ist                    - List all entries.
+    [l]ist [category]         - List all entries (or those in a category).
+    [m]ove [src] [name]       - Rename a password entry.
     [s]how [name]             - Show password for an entry.
     [r]and [length] [pattern] - Generate a random password.
     [q]r [name]               - Show password as QR code.
@@ -426,25 +443,46 @@ main() {
     exit $?
   }
 
+  [[ $command == m* ]] && {
+    src=$(printf %s "$1" | LC_ALL=C tr -d '[:cntrl:]')
+    [[ -n $src ]] || die "missing [src] argument"
+    shift
+  }
+
   # Combine the rest of positional arguments into
   # a name and remove control characters from it
   # so that a name can always be safely displayed.
   name=$(printf %s "$*" | LC_ALL=C tr -d '[:cntrl:]')
 
-  [[ $command == [ades]* ]] && [[ -z $name ]] &&
+  [[ $command == [adesm]* ]] && [[ -z $name ]] &&
     die "missing [name] argument"
 
-  [[ $name == /* ]] || [[ $name == */ ]] &&
+  [[ $name == /* || $name == */ ]] &&
     die "name can't start or end with '/'"
 
-  [[ $name == ../* ]] || [[ $name == */../* ]] &&
+  [[ $name == ../* || $name == */../* ]] &&
     die "category went out of bounds"
 
-  [[ $command == a* ]] && [[ -f $name.age ]] &&
+  [[ $command == m* ]] && [[ $src == /* || $src == */ ]] &&
+    die "name can't start or end with '/'"
+
+  [[ $command == m* ]] && [[ $src == ../* || $src == */../* ]] &&
+    die "category went out of bounds"
+
+  [[ $command == m* ]] && [[ ! -f ./$src.age ]] &&
+    die "password '$src' doesn't exist"
+
+  [[ $command == [am]* ]] && [[ -f $name.age ]] &&
     die "password '$name' already exists"
 
   [[ $command == [ds]* ]] && [[ ! -f $name.age ]] &&
     die "password '$name' doesn't exist"
+
+  [[ $command == l* ]] && [[ -n $name ]] && [[ ! -d ./$name ]] &&
+    die "category '$name' doesn't exist"
+
+  [[ $command == l* ]] && [[ $name == /* ]] &&
+    die "category can't start with '/'"
 
   if command -v age-plugin-yubikey >/dev/null 2>&1; then
     [[ ! -f $identities_file ]] && [[ ! -f $recipients_file ]] && {
@@ -476,6 +514,7 @@ main() {
   d*) pw_del ;;
   e*) pw_edit ;;
   l*) pw_list ;;
+  m*) pw_move ;;
   s*) pw_show ;;
   r*) pw_rand "$@" ;;
   q*) pw_qr ;;
