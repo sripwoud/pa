@@ -398,16 +398,16 @@ main() {
     git_add_and_commit . "initial commit"
   }
 
-  command=$1
+  cmd=$1
   shift
 
-  [[ $command == g* ]] && {
+  [[ $cmd == g* ]] && {
     git "$@"
     exit $?
   }
 
   # OTP shortcuts: pa oi, pa oc, pa ou, pa ov
-  case $command in
+  case $cmd in
   oi)
     otp_check_tools
     name=$(printf %s "$*" | LC_ALL=C tr -d '[:cntrl:]')
@@ -434,7 +434,7 @@ main() {
   esac
 
   # OTP subcommand: pa otp <cmd> [name]
-  [[ $command == o* ]] && {
+  [[ $cmd == o* ]] && {
     otp_check_tools
     otp_cmd=$1
     shift
@@ -449,7 +449,7 @@ main() {
     exit $?
   }
 
-  [[ $command == m* ]] && {
+  [[ $cmd == m* ]] && {
     src=$(printf %s "$1" | LC_ALL=C tr -d '[:cntrl:]')
     [[ -n $src ]] || die "missing [src] argument"
     shift
@@ -460,7 +460,7 @@ main() {
   # so that a name can always be safely displayed.
   name=$(printf %s "$*" | LC_ALL=C tr -d '[:cntrl:]')
 
-  [[ $command == [adesm]* ]] && [[ -z $name ]] &&
+  [[ $cmd == [adesm]* ]] && [[ -z $name ]] &&
     die "missing [name] argument"
 
   [[ $name == /* || $name == */ ]] &&
@@ -469,25 +469,25 @@ main() {
   [[ $name == ../* || $name == */../* ]] &&
     die "category went out of bounds"
 
-  [[ $command == m* ]] && [[ $src == /* || $src == */ ]] &&
+  [[ $cmd == m* ]] && [[ $src == /* || $src == */ ]] &&
     die "name can't start or end with '/'"
 
-  [[ $command == m* ]] && [[ $src == ../* || $src == */../* ]] &&
+  [[ $cmd == m* ]] && [[ $src == ../* || $src == */../* ]] &&
     die "category went out of bounds"
 
-  [[ $command == m* ]] && [[ ! -f ./$src.age ]] &&
+  [[ $cmd == m* ]] && [[ ! -f ./$src.age ]] &&
     die "password '$src' doesn't exist"
 
-  [[ $command == [am]* ]] && [[ -f $name.age ]] &&
+  [[ $cmd == [am]* ]] && [[ -f $name.age ]] &&
     die "password '$name' already exists"
 
-  [[ $command == [ds]* ]] && [[ ! -f $name.age ]] &&
+  [[ $cmd == [ds]* ]] && [[ ! -f $name.age ]] &&
     die "password '$name' doesn't exist"
 
-  [[ $command == l* ]] && [[ -n $name ]] && [[ ! -d ./$name ]] &&
+  [[ $cmd == l* ]] && [[ -n $name ]] && [[ ! -d ./$name ]] &&
     die "category '$name' doesn't exist"
 
-  [[ $command == l* ]] && [[ $name == /* ]] &&
+  [[ $cmd == l* ]] && [[ $name == /* ]] &&
     die "category can't start with '/'"
 
   if command -v age-plugin-yubikey >/dev/null 2>&1; then
@@ -515,7 +515,7 @@ main() {
   # Ensure that we leave the terminal in a usable state on Ctrl+C.
   [[ -t 0 ]] && trap 'trap - INT; kill -s INT 0' INT
 
-  case $command in
+  case $cmd in
   a*) pw_add ;;
   d*) pw_del ;;
   e*) pw_edit ;;
