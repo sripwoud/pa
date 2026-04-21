@@ -32,7 +32,8 @@ commands:
   [d]el  [name]             - Delete a password entry.
   [e]dit [name]             - Edit a password entry with vi.
   [g]it  [cmd]              - Run git command in the password dir.
-  [l]ist                    - List all entries.
+  [l]ist [category]         - List all entries (or those in a category).
+  [m]ove [src] [name]       - Rename a password entry.
   [s]how [name]             - Show password for an entry.
   [r]and [length] [pattern] - Generate a random password.
   [q]r [name]               - Show password as QR code.
