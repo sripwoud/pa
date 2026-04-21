@@ -31,7 +31,7 @@ pw_add() {
 
   printf '%s\n' "saved '$name' to the store." >&2
 
-  $git_enabled && git_add_and_commit "./$name.age" "add '$name'"
+  if $git_enabled; then git_add_and_commit "./$name.age" "add '$name'"; fi
 }
 
 pw_edit() {
@@ -67,7 +67,7 @@ pw_edit() {
 
     if $new; then printf '%s\n' "saved '$name' to the store." >&2; fi
 
-    $git_enabled && git_add_and_commit "./$name.age" "edit '$name'"
+    if $git_enabled; then git_add_and_commit "./$name.age" "edit '$name'"; fi
   }
 }
 
@@ -77,7 +77,7 @@ pw_del() {
 
     rmdir -p "$(dirname "./$name")" 2>/dev/null || :
 
-    $git_enabled && git_add_and_commit "./$name.age" "delete '$name'"
+    if $git_enabled; then git_add_and_commit "./$name.age" "delete '$name'"; fi
   }
 }
 
@@ -194,7 +194,7 @@ otp_insert() {
 
   printf '%s\n' "saved otp '$name' to the store." >&2
 
-  $git_enabled && git_add_and_commit "./$name.age" "add otp '$name'"
+  if $git_enabled; then git_add_and_commit "./$name.age" "add otp '$name'"; fi
 }
 
 otp_code() {
@@ -224,7 +224,7 @@ otp_code() {
     [[ -n $otp_issuer ]] &&
       new_uri=$(printf '%s&issuer=%s' "$new_uri" "$otp_issuer")
     printf '%s\n' "$new_uri" | encrypt "./$name.age"
-    $git_enabled && git_add_and_commit "./$name.age" "increment HOTP counter for '$name'"
+    if $git_enabled; then git_add_and_commit "./$name.age" "increment HOTP counter for '$name'"; fi
     ;;
   *) die "unsupported OTP type: $otp_type" ;;
   esac
