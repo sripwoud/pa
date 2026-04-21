@@ -464,7 +464,7 @@ main() {
   name=$(printf %s "$*" | LC_ALL=C tr -d '[:cntrl:]')
 
   [[ $cmd == [adesm]* ]] && [[ -z $name ]] &&
-    die "missing [name] argument"
+    die "$cmd: missing [name] argument"
 
   [[ $name == /* || $name == */ ]] &&
     die "name can't start or end with '/'"
@@ -473,10 +473,10 @@ main() {
     die "category went out of bounds"
 
   [[ $cmd == m* ]] && [[ $src == /* || $src == */ ]] &&
-    die "name can't start or end with '/'"
+    die "move: source can't start or end with '/'"
 
   [[ $cmd == m* ]] && [[ $src == ../* || $src == */../* ]] &&
-    die "category went out of bounds"
+    die "move: source category went out of bounds"
 
   [[ $cmd == m* ]] && [[ ! -f ./$src.age ]] &&
     die "password '$src' doesn't exist"
