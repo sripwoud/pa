@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -o pipefail
 #
 # pa - a simple password manager
 
@@ -28,9 +29,9 @@ pw_add() {
 		$pass
 	EOF
 
-  printf '%s\n' "saved '$name' to the store."
+  printf '%s\n' "saved '$name' to the store." >&2
 
-  $git_enabled && git_add_and_commit "./$name.age" "add '$name'"
+  if $git_enabled; then git_add_and_commit "./$name.age" "add '$name'"; fi
 }
 
 pw_edit() {
@@ -43,27 +44,30 @@ pw_edit() {
   # have non-standard methods of setup/access.
   [[ -w /dev/shm ]] || tmpdir=/tmp
 
-  tmpfile=$(printf 'mkstemp(%s/pa.XXXXXX)' $tmpdir | m4) ||
+  tmpfile=$(mktemp "${tmpdir}/pa.XXXXXX") ||
     die "couldn't create a shared memory file"
 
   trap 'rm -f "$tmpfile"' EXIT
 
-  if [[ ! -f $name.age ]]; then new=true; else new=false && {
+  if [[ ! -f "$name.age" ]]; then
+    new=true
+  else
+    new=false
     decrypt -o "$tmpfile" "./$name.age"
-  }; fi
+  fi
 
   ${EDITOR:-vi} "$tmpfile" ||
     die "EDITOR exited non-zero"
 
-  [[ -s $tmpfile ]] && {
+  [[ -s "$tmpfile" ]] && {
     mkdir -p "$(dirname "./$name")" ||
       die "couldn't create category '$(dirname "./$name" | cut -c3-)'"
 
     encrypt "./$name.age" "$tmpfile"
 
-    if $new; then printf '%s\n' "saved '$name' to the store."; fi
+    if $new; then printf '%s\n' "saved '$name' to the store." >&2; fi
 
-    $git_enabled && git_add_and_commit "./$name.age" "edit '$name'"
+    if $git_enabled; then git_add_and_commit "./$name.age" "edit '$name'"; fi
   }
 }
 
@@ -73,15 +77,18 @@ pw_del() {
 
     rmdir -p "$(dirname "./$name")" 2>/dev/null || :
 
-    $git_enabled && git_add_and_commit "./$name.age" "delete '$name'"
+    if $git_enabled; then git_add_and_commit "./$name.age" "delete '$name'"; fi
   }
 }
 
 pw_rand() {
+  local password
   password=$(rand_chars "${1:-$PA_LENGTH}" "${2:-$PA_PATTERN}")
-  echo "$password"
-  printf '%s' "$password" | xclip -selection clipboard
-  echo "Password copied to clipboard!"
+  printf '%s\n' "$password"
+  if command -v xclip >/dev/null 2>&1; then
+    printf '%s' "$password" | xclip -selection clipboard
+    printf '%s\n' "password copied to clipboard" >&2
+  fi
 }
 
 pw_show() {
@@ -151,7 +158,9 @@ otp_parse_uri() {
   otp_label="${rest%%\?*}"
   query="${rest#*\?}"
 
-  for param in ${query//&/ }; do
+  local -a params
+  IFS='&' read -ra params <<< "$query"
+  for param in "${params[@]}"; do
     key="${param%%=*}"
     value="${param#*=}"
     # shellcheck disable=2034
@@ -183,9 +192,9 @@ otp_insert() {
 
   printf '%s\n' "$uri" | encrypt "./$name.age"
 
-  printf '%s\n' "saved otp '$name' to the store."
+  printf '%s\n' "saved otp '$name' to the store." >&2
 
-  $git_enabled && git_add_and_commit "./$name.age" "add otp '$name'"
+  if $git_enabled; then git_add_and_commit "./$name.age" "add otp '$name'"; fi
 }
 
 otp_code() {
@@ -215,7 +224,7 @@ otp_code() {
     [[ -n $otp_issuer ]] &&
       new_uri=$(printf '%s&issuer=%s' "$new_uri" "$otp_issuer")
     printf '%s\n' "$new_uri" | encrypt "./$name.age"
-    $git_enabled && git_add_and_commit "./$name.age" "increment HOTP counter for '$name'"
+    if $git_enabled; then git_add_and_commit "./$name.age" "increment HOTP counter for '$name'"; fi
     ;;
   *) die "unsupported OTP type: $otp_type" ;;
   esac
@@ -237,7 +246,7 @@ otp_uri() {
 
 otp_validate() {
   otp_parse_uri "$1"
-  printf '%s\n' "valid OTP URI."
+  printf '%s\n' "valid OTP URI." >&2
 }
 
 otp_usage() {
@@ -392,16 +401,16 @@ main() {
     git_add_and_commit . "initial commit"
   }
 
-  command=$1
+  cmd=$1
   shift
 
-  [[ $command == g* ]] && {
+  [[ $cmd == g* ]] && {
     git "$@"
     exit $?
   }
 
   # OTP shortcuts: pa oi, pa oc, pa ou, pa ov
-  case $command in
+  case $cmd in
   oi)
     otp_check_tools
     name=$(printf %s "$*" | LC_ALL=C tr -d '[:cntrl:]')
@@ -428,7 +437,7 @@ main() {
   esac
 
   # OTP subcommand: pa otp <cmd> [name]
-  [[ $command == o* ]] && {
+  [[ $cmd == o* ]] && {
     otp_check_tools
     otp_cmd=$1
     shift
@@ -443,7 +452,7 @@ main() {
     exit $?
   }
 
-  [[ $command == m* ]] && {
+  [[ $cmd == m* ]] && {
     src=$(printf %s "$1" | LC_ALL=C tr -d '[:cntrl:]')
     [[ -n $src ]] || die "missing [src] argument"
     shift
@@ -454,8 +463,8 @@ main() {
   # so that a name can always be safely displayed.
   name=$(printf %s "$*" | LC_ALL=C tr -d '[:cntrl:]')
 
-  [[ $command == [adesm]* ]] && [[ -z $name ]] &&
-    die "missing [name] argument"
+  [[ $cmd == [adesm]* ]] && [[ -z $name ]] &&
+    die "$cmd: missing [name] argument"
 
   [[ $name == /* || $name == */ ]] &&
     die "name can't start or end with '/'"
@@ -463,25 +472,25 @@ main() {
   [[ $name == ../* || $name == */../* ]] &&
     die "category went out of bounds"
 
-  [[ $command == m* ]] && [[ $src == /* || $src == */ ]] &&
-    die "name can't start or end with '/'"
+  [[ $cmd == m* ]] && [[ $src == /* || $src == */ ]] &&
+    die "move: source can't start or end with '/'"
 
-  [[ $command == m* ]] && [[ $src == ../* || $src == */../* ]] &&
-    die "category went out of bounds"
+  [[ $cmd == m* ]] && [[ $src == ../* || $src == */../* ]] &&
+    die "move: source category went out of bounds"
 
-  [[ $command == m* ]] && [[ ! -f ./$src.age ]] &&
+  [[ $cmd == m* ]] && [[ ! -f ./$src.age ]] &&
     die "password '$src' doesn't exist"
 
-  [[ $command == [am]* ]] && [[ -f $name.age ]] &&
+  [[ $cmd == [am]* ]] && [[ -f $name.age ]] &&
     die "password '$name' already exists"
 
-  [[ $command == [ds]* ]] && [[ ! -f $name.age ]] &&
+  [[ $cmd == [ds]* ]] && [[ ! -f $name.age ]] &&
     die "password '$name' doesn't exist"
 
-  [[ $command == l* ]] && [[ -n $name ]] && [[ ! -d ./$name ]] &&
+  [[ $cmd == l* ]] && [[ -n $name ]] && [[ ! -d ./$name ]] &&
     die "category '$name' doesn't exist"
 
-  [[ $command == l* ]] && [[ $name == /* ]] &&
+  [[ $cmd == l* ]] && [[ $name == /* ]] &&
     die "category can't start with '/'"
 
   if command -v age-plugin-yubikey >/dev/null 2>&1; then
@@ -509,7 +518,7 @@ main() {
   # Ensure that we leave the terminal in a usable state on Ctrl+C.
   [[ -t 0 ]] && trap 'trap - INT; kill -s INT 0' INT
 
-  case $command in
+  case $cmd in
   a*) pw_add ;;
   d*) pw_del ;;
   e*) pw_edit ;;
@@ -530,4 +539,11 @@ set +x
 # only the current user.
 umask 077
 
-[[ $1 ]] || usage && main "$@"
+[[ $1 ]] || usage
+
+case $1 in
+  -h|--help) usage ;;
+  -v|--version) printf 'pa 0.1.0\n'; exit 0 ;;
+esac
+
+main "$@"

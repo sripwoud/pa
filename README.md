@@ -17,9 +17,9 @@
 - random password generation with clipboard support
 - QR code display via `qrencode`
 - YubiKey identity support via `age-plugin-yubikey`
-- [`pa-completion.bash`](./pa-completion.bash) — bash completions
-- [`pa-dmenu`](./pa-dmenu) — dmenu integration
-- [`pa-pass`](./pa-pass) — migration from [pass](https://www.passwordstore.org/)
+- [`completions/pa.bash`](./completions/pa.bash) — bash completions
+- [`contrib/pa-dmenu`](./contrib/pa-dmenu) — dmenu integration
+- [`contrib/pa-pass`](./contrib/pa-pass) — migration from [pass](https://www.passwordstore.org/)
 
 ## Usage
 

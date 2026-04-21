@@ -24,8 +24,8 @@ _pa() {
     esac
     ;;
   m*)
-    [[ $COMP_CWORD -eq 2 ]] || return
-    mapfile -t COMPREPLY < <(compgen -W "$(pa l)" -- "${COMP_WORDS[2]}")
+    [[ $COMP_CWORD -le 3 ]] || return
+    mapfile -t COMPREPLY < <(compgen -W "$(pa l)" -- "${COMP_WORDS[$COMP_CWORD]}")
     ;;
   [desq]*)
     [[ $COMP_CWORD -eq 2 ]] || return

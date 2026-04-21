@@ -11,7 +11,7 @@
 
 ifinstalled pass paotp || exit 1
 
-dir="$XDG_DATA_HOME/pa/passwords"
+dir="${XDG_DATA_HOME:-$HOME/.local/share}/pa/passwords"
 
 choice="$({
   echo "🆕add"
