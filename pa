@@ -49,14 +49,17 @@ pw_edit() {
 
   trap 'rm -f "$tmpfile"' EXIT
 
-  if [[ ! -f $name.age ]]; then new=true; else new=false && {
+  if [[ ! -f "$name.age" ]]; then
+    new=true
+  else
+    new=false
     decrypt -o "$tmpfile" "./$name.age"
-  }; fi
+  fi
 
   ${EDITOR:-vi} "$tmpfile" ||
     die "EDITOR exited non-zero"
 
-  [[ -s $tmpfile ]] && {
+  [[ -s "$tmpfile" ]] && {
     mkdir -p "$(dirname "./$name")" ||
       die "couldn't create category '$(dirname "./$name" | cut -c3-)'"
 
@@ -152,7 +155,9 @@ otp_parse_uri() {
   otp_label="${rest%%\?*}"
   query="${rest#*\?}"
 
-  for param in ${query//&/ }; do
+  local -a params
+  IFS='&' read -ra params <<< "$query"
+  for param in "${params[@]}"; do
     key="${param%%=*}"
     value="${param#*=}"
     # shellcheck disable=2034
