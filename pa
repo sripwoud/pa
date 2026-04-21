@@ -540,4 +540,10 @@ set +x
 umask 077
 
 [[ $1 ]] || usage
+
+case $1 in
+  -h|--help) usage ;;
+  -v|--version) printf 'pa 0.1.0\n'; exit 0 ;;
+esac
+
 main "$@"
