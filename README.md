@@ -1,6 +1,6 @@
-Fork of [biox/pa](https://github.com/biox/pa) — a simple password manager.
+<p align="center">Fork of <a href="https://github.com/biox/pa">biox/pa</a> — a simple password manager.</p>
 
-## features
+## Features
 
 - encryption implemented using [age](https://age-encryption.org)
 - automatic key generation
@@ -10,7 +10,7 @@ Fork of [biox/pa](https://github.com/biox/pa) — a simple password manager.
 - simple to extend
 - pronounced "pah" — as in "papa"
 
-## additional features
+## Additional Features
 
 - OTP management (TOTP/HOTP via `oathtool`)
 - OTP shortcuts (`pa oi`, `pa oc`, `pa ou`, `pa ov`)
@@ -21,7 +21,7 @@ Fork of [biox/pa](https://github.com/biox/pa) — a simple password manager.
 - [`pa-dmenu`](./pa-dmenu) — dmenu integration
 - [`pa-pass`](./pa-pass) — migration from [pass](https://www.passwordstore.org/)
 
-## usage
+## Usage
 
 ```
 pa
