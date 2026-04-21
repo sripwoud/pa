@@ -29,7 +29,7 @@ pw_add() {
 		$pass
 	EOF
 
-  printf '%s\n' "saved '$name' to the store."
+  printf '%s\n' "saved '$name' to the store." >&2
 
   $git_enabled && git_add_and_commit "./$name.age" "add '$name'"
 }
@@ -65,7 +65,7 @@ pw_edit() {
 
     encrypt "./$name.age" "$tmpfile"
 
-    if $new; then printf '%s\n' "saved '$name' to the store."; fi
+    if $new; then printf '%s\n' "saved '$name' to the store." >&2; fi
 
     $git_enabled && git_add_and_commit "./$name.age" "edit '$name'"
   }
@@ -82,10 +82,13 @@ pw_del() {
 }
 
 pw_rand() {
+  local password
   password=$(rand_chars "${1:-$PA_LENGTH}" "${2:-$PA_PATTERN}")
-  echo "$password"
-  printf '%s' "$password" | xclip -selection clipboard
-  echo "Password copied to clipboard!"
+  printf '%s\n' "$password"
+  if command -v xclip >/dev/null 2>&1; then
+    printf '%s' "$password" | xclip -selection clipboard
+    printf '%s\n' "password copied to clipboard" >&2
+  fi
 }
 
 pw_show() {
@@ -189,7 +192,7 @@ otp_insert() {
 
   printf '%s\n' "$uri" | encrypt "./$name.age"
 
-  printf '%s\n' "saved otp '$name' to the store."
+  printf '%s\n' "saved otp '$name' to the store." >&2
 
   $git_enabled && git_add_and_commit "./$name.age" "add otp '$name'"
 }
@@ -243,7 +246,7 @@ otp_uri() {
 
 otp_validate() {
   otp_parse_uri "$1"
-  printf '%s\n' "valid OTP URI."
+  printf '%s\n' "valid OTP URI." >&2
 }
 
 otp_usage() {
