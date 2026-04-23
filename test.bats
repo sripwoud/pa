@@ -179,6 +179,50 @@ setup() {
 
 # --- Git integration ---
 
+# --- Meta ---
+
+@test "meta creates name/meta entry" {
+  EDITOR=true "$PA" meta myservice 2>/dev/null
+  [[ -f "$PA_DIR/passwords/myservice/meta.age" ]]
+}
+
+@test "me shortcut creates name/meta entry" {
+  EDITOR=true "$PA" me svc 2>/dev/null
+  [[ -f "$PA_DIR/passwords/svc/meta.age" ]]
+}
+
+@test "meta first line is na" {
+  EDITOR=true "$PA" meta check 2>/dev/null
+  run "$PA" show check/meta
+  [[ ${lines[0]} == "na" ]]
+}
+
+@test "meta prints status to stderr" {
+  local stderr
+  stderr=$(EDITOR=true "$PA" meta statuscheck 2>&1 1>/dev/null)
+  [[ $stderr == *"saved meta 'statuscheck/meta' to the store."* ]]
+}
+
+@test "meta rejects missing name" {
+  run --separate-stderr "$PA" meta
+  [[ $status -ne 0 ]]
+  [[ ${stderr_lines[0]} == *"missing [name]"* ]]
+}
+
+@test "meta rejects duplicate" {
+  EDITOR=true "$PA" meta duptest 2>/dev/null
+  run --separate-stderr "$PA" meta duptest
+  [[ $status -ne 0 ]]
+  [[ ${stderr_lines[0]} == *"already exists"* ]]
+}
+
+@test "meta creates nested entry" {
+  EDITOR=true "$PA" meta wallet/exodus 2>/dev/null
+  [[ -f "$PA_DIR/passwords/wallet/exodus/meta.age" ]]
+}
+
+# --- Dispatch ---
+
 @test "rejects partial commands" {
   run "$PA" ad testentry
   [[ $status -eq 0 ]]

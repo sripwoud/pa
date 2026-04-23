@@ -105,6 +105,32 @@ pw_list() {
   find "$dir" -type f -name \*.age | sed 's|^\./||;s/\.age$//' | sort
 }
 
+pw_meta() {
+  mkdir -p "$(dirname "./$name")" ||
+    die "couldn't create category '$(dirname "./$name" | cut -c3-)'"
+
+  tmpdir=/dev/shm
+  [[ -w /dev/shm ]] || tmpdir=/tmp
+
+  tmpfile=$(mktemp "${tmpdir}/pa.XXXXXX") ||
+    die "couldn't create a shared memory file"
+
+  trap 'rm -f "$tmpfile"' EXIT
+
+  printf '%s\n' "na" >"$tmpfile"
+
+  ${EDITOR:-vi} "$tmpfile" ||
+    die "EDITOR exited non-zero"
+
+  [[ -s "$tmpfile" ]] || die "empty meta entry, aborting"
+
+  encrypt "./$name.age" "$tmpfile"
+
+  printf '%s\n' "saved meta '$name' to the store." >&2
+
+  if $git_enabled; then git_add_and_commit "./$name.age" "add meta '$name'"; fi
+}
+
 pw_move() {
   mkdir -p "$(dirname "./$name")" ||
     die "couldn't create category '$(dirname "./$name" | cut -c3-)'"
@@ -330,6 +356,7 @@ usage() {
     s|show [name]             - Show password for an entry.
     r|rand [length] [pattern] - Generate a random password.
     q|qr   [name]             - Show password as QR code.
+    me|meta [name]            - Add a metadata entry (name/meta).
 
   otp commands:
     o|otp i|insert [name]     - Add an OTP entry (reads URI from stdin).
@@ -445,6 +472,16 @@ main() {
     v|validate) otp_validate "$name" ;;
     *) otp_usage ;;
     esac
+    exit $?
+    ;;
+  me|meta)
+    name=$(printf %s "$*" | LC_ALL=C tr -d '[:cntrl:]')
+    [[ -n $name ]] || die "meta: missing [name] argument"
+    name="$name/meta"
+    [[ $name == /* || $name == */ ]] && die "name can't start or end with '/'"
+    [[ $name == ../* || $name == */../* ]] && die "category went out of bounds"
+    [[ -f "./$name.age" ]] && die "meta entry '$name' already exists"
+    pw_meta
     exit $?
     ;;
   esac

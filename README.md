@@ -37,6 +37,7 @@ commands:
   s|show [name]             - Show password for an entry.
   r|rand [length] [pattern] - Generate a random password.
   q|qr   [name]             - Show password as QR code.
+  me|meta [name]            - Add a metadata entry (name/meta).
 
 otp commands:
   o|otp i|insert [name]     - Add an OTP entry (reads URI from stdin).

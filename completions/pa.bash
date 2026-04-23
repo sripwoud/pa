@@ -2,7 +2,7 @@ _pa() {
   local cmd="${COMP_WORDS[1]}"
 
   if [[ $COMP_CWORD -eq 1 ]]; then
-    mapfile -t COMPREPLY < <(compgen -W "add del edit git list move show rand qr otp oi oc ou ov" -- "${COMP_WORDS[1]}")
+    mapfile -t COMPREPLY < <(compgen -W "add del edit git list move meta show rand qr otp oi oc ou ov" -- "${COMP_WORDS[1]}")
     return
   fi
 
@@ -26,6 +26,10 @@ _pa() {
   m | move)
     [[ $COMP_CWORD -le 3 ]] || return
     mapfile -t COMPREPLY < <(compgen -W "$(pa l)" -- "${COMP_WORDS[$COMP_CWORD]}")
+    ;;
+  me | meta)
+    [[ $COMP_CWORD -eq 2 ]] || return
+    mapfile -t COMPREPLY < <(compgen -W "$(pa l | sed 's/[^/]\+$//' | grep '/$' | sort -u)" -- "${COMP_WORDS[2]}")
     ;;
   d | del | e | edit | s | show | q | qr)
     [[ $COMP_CWORD -eq 2 ]] || return
