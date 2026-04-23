@@ -2,7 +2,7 @@ _pa() {
   local cmd="${COMP_WORDS[1]}"
 
   if [[ $COMP_CWORD -eq 1 ]]; then
-    mapfile -t COMPREPLY < <(compgen -W "add del edit git list move meta show rand qr otp oi oc ou ov" -- "${COMP_WORDS[1]}")
+    mapfile -t COMPREPLY < <(compgen -W "add del edit git list move me meta show rand qr otp oi oc ou ov" -- "${COMP_WORDS[1]}")
     return
   fi
 
