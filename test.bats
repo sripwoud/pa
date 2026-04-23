@@ -179,6 +179,12 @@ setup() {
 
 # --- Git integration ---
 
+@test "rejects partial commands" {
+  run "$PA" ad testentry
+  [[ $status -eq 0 ]]
+  [[ $output == *"a simple password manager"* ]]
+}
+
 @test "git tracking records commits when enabled" {
   export PA_DIR="$BATS_TEST_TMPDIR/pa-git"
   unset PA_NOGIT

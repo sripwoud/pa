@@ -11,27 +11,27 @@ _pa() {
     [[ $COMP_CWORD -eq 2 ]] || return
     mapfile -t COMPREPLY < <(compgen -W "$(pa l | grep -- '-otp$')" -- "${COMP_WORDS[2]}")
     ;;
-  otp | o*)
+  o | otp)
     if [[ $COMP_CWORD -eq 2 ]]; then
       mapfile -t COMPREPLY < <(compgen -W "insert code uri validate" -- "${COMP_WORDS[2]}")
       return
     fi
     [[ $COMP_CWORD -eq 3 ]] || return
     case "${COMP_WORDS[2]}" in
-    i* | c* | u*)
+    i | insert | c | code | u | uri)
       mapfile -t COMPREPLY < <(compgen -W "$(pa l | grep -- '-otp$')" -- "${COMP_WORDS[3]}")
       ;;
     esac
     ;;
-  m*)
+  m | move)
     [[ $COMP_CWORD -le 3 ]] || return
     mapfile -t COMPREPLY < <(compgen -W "$(pa l)" -- "${COMP_WORDS[$COMP_CWORD]}")
     ;;
-  [desq]*)
+  d | del | e | edit | s | show | q | qr)
     [[ $COMP_CWORD -eq 2 ]] || return
     mapfile -t COMPREPLY < <(compgen -W "$(pa l)" -- "${COMP_WORDS[2]}")
     ;;
-  l*)
+  l | list)
     [[ $COMP_CWORD -eq 2 ]] || return
     mapfile -t COMPREPLY < <(compgen -W "$(pa l | sed 's/[^/]\+$//' | grep '/$' | sort -u)" -- "${COMP_WORDS[2]}")
     ;;
