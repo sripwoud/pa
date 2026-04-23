@@ -352,11 +352,11 @@ usage() {
     e|edit [name]             - Edit a password entry with ${EDITOR:-vi}.
     g|git  [cmd]              - Run git command in the password dir.
     l|list [category]         - List all entries (or those in a category).
-    m|move [src] [name]       - Rename a password entry.
-    s|show [name]             - Show password for an entry.
-    r|rand [length] [pattern] - Generate a random password.
-    q|qr   [name]             - Show password as QR code.
     me|meta [name]            - Add a metadata entry (name/meta).
+    m|move [src] [name]       - Rename a password entry.
+    q|qr   [name]             - Show password as QR code.
+    r|rand [length] [pattern] - Generate a random password.
+    s|show [name]             - Show password for an entry.
 
   otp commands:
     o|otp i|insert [name]     - Add an OTP entry (reads URI from stdin).
