@@ -1,8 +1,11 @@
-#!/bin/sh
+#!/usr/bin/env bash
 #
-# prompt for a password via dmenu
-# generate new password if it doesn't exist
-# then type the selected password (or OTP) via xdotool
+# Prompt for a password via dmenu, generate it if it doesn't exist,
+# then type the selected password (or OTP) via xdotool.
+#
+# Requires: pa, dmenu, xdotool, paotp (for '*-otp' entries).
+
+set -o pipefail
 
 show() {
   case "$1" in
@@ -20,8 +23,9 @@ paste() {
 }
 
 main() {
-  local name=$(pa l | dmenu "$@") || exit
-  show "$name" | paste
+  local name
+  name=$(pa l | dmenu "$@") || exit
+  show "${name}" | paste
 }
 
-main
+main "$@"
