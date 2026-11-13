@@ -1,4 +1,7 @@
 #!/usr/bin/env bats
+# shellcheck disable=SC2154 # BATS_* variables are set by bats
+# shellcheck disable=SC2250 # bats idiom: bare $status, $output, $PA
+# shellcheck disable=SC2030,SC2031 # each @test runs in its own subshell
 bats_require_minimum_version 1.5.0
 
 setup() {
@@ -253,6 +256,7 @@ setup() {
 
 @test "edit honors EDITOR with arguments" {
   local editor="$BATS_TEST_TMPDIR/editor"
+  # shellcheck disable=SC2016 # literal script body for the fake editor
   printf '#!/bin/sh\nprintf %%s "$2" >"$1"\nprintf edited >"$2"\n' >"$editor"
   chmod +x "$editor"
   EDITOR="$editor $BATS_TEST_TMPDIR/tmppath" "$PA" edit spaced 2>/dev/null
@@ -263,6 +267,7 @@ setup() {
 
 @test "edit removes temp file when EDITOR fails" {
   local editor="$BATS_TEST_TMPDIR/editor"
+  # shellcheck disable=SC2016 # literal script body for the fake editor
   printf '#!/bin/sh\nprintf %%s "$2" >"$1"\nexit 1\n' >"$editor"
   chmod +x "$editor"
   run --separate-stderr env EDITOR="$editor $BATS_TEST_TMPDIR/tmppath" "$PA" edit failing
@@ -299,6 +304,7 @@ setup() {
 @test "otp rejects non-numeric HOTP counter without evaluating it" {
   command -v oathtool >/dev/null || skip "oathtool not installed"
   local marker="$BATS_TEST_TMPDIR/pwned"
+  # shellcheck disable=SC2016 # literal payload must not expand here
   printf 'otpauth://hotp/x?secret=JBSWY3DPEHPK3PXP&counter=a[$(touch %s)]\n' "$marker" |
     "$PA" oi evil 2>/dev/null || :
   run --separate-stderr "$PA" oc evil
@@ -324,8 +330,10 @@ EOF
     run "$BATS_TEST_DIRNAME/contrib/pa-pass"
   [[ $status -eq 0 ]]
   [[ $output == *"saved 'web/my site' to the store."* ]]
-  [[ $("$PA" show top) == secret1 ]]
-  [[ $("$PA" show "web/my site") == secret2 ]]
+  run "$PA" show top
+  [[ $output == secret1 ]]
+  run "$PA" show "web/my site"
+  [[ $output == secret2 ]]
 }
 
 @test "pa-pass fails on a missing pass store" {
