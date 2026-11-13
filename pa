@@ -34,6 +34,27 @@ pw_add() {
   if $git_enabled; then git_add_and_commit "./$name.age" "add '$name'"; fi
 }
 
+pw_insert() {
+  [[ -t 0 ]] &&
+    die "insert reads the password from stdin, pipe it in (e.g. 'pa rand | pa insert $name') or use 'pa add $name'"
+
+  pass=$(cat) || die "couldn't read stdin"
+
+  [[ -n $pass ]] ||
+    die "password can't be empty"
+
+  mkdir -p "$(dirname "./$name")" ||
+    die "couldn't create category '$(dirname "./$name" | cut -c3-)'"
+
+  encrypt "./$name.age" <<-EOF
+		$pass
+	EOF
+
+  printf '%s\n' "saved '$name' to the store." >&2
+
+  if $git_enabled; then git_add_and_commit "./$name.age" "add '$name'"; fi
+}
+
 pw_edit() {
   # Prefer /dev/shm because it's an in-memory
   # space that we can use to store data without
@@ -351,6 +372,7 @@ usage() {
     d|del  [name]             - Delete a password entry.
     e|edit [name]             - Edit a password entry with ${EDITOR:-vi}.
     g|git  [cmd]              - Run git command in the password dir.
+    i|insert [name]           - Add a password entry from stdin.
     l|list [category]         - List all entries (or those in a category).
     me|meta [name]            - Add a metadata entry (name/meta).
     m|move [src] [name]       - Rename a password entry.
@@ -494,7 +516,7 @@ main() {
 
   name=$(printf %s "$*" | LC_ALL=C tr -d '[:cntrl:]')
 
-  [[ $cmd == @(a|add|d|del|e|edit|s|show|m|move) ]] && [[ -z $name ]] &&
+  [[ $cmd == @(a|add|i|insert|d|del|e|edit|s|show|m|move) ]] && [[ -z $name ]] &&
     die "$cmd: missing [name] argument"
 
   [[ $name == /* || $name == */ ]] &&
@@ -512,7 +534,7 @@ main() {
   [[ $cmd == @(m|move) ]] && [[ ! -f ./$src.age ]] &&
     die "password '$src' doesn't exist"
 
-  [[ $cmd == @(a|add|m|move) ]] && [[ -f $name.age ]] &&
+  [[ $cmd == @(a|add|i|insert|m|move) ]] && [[ -f $name.age ]] &&
     die "password '$name' already exists"
 
   [[ $cmd == @(d|del|s|show) ]] && [[ ! -f $name.age ]] &&
@@ -553,6 +575,7 @@ main() {
   a|add) pw_add ;;
   d|del) pw_del ;;
   e|edit) pw_edit ;;
+  i|insert) pw_insert ;;
   l|list) pw_list ;;
   m|move) pw_move ;;
   s|show) pw_show ;;

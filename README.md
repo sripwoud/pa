@@ -32,6 +32,7 @@ commands:
   d|del  [name]             - Delete a password entry.
   e|edit [name]             - Edit a password entry with vi.
   g|git  [cmd]              - Run git command in the password dir.
+  i|insert [name]           - Add a password entry from stdin.
   l|list [category]         - List all entries (or those in a category).
   me|meta [name]            - Add a metadata entry (name/meta).
   m|move [src] [name]       - Rename a password entry.

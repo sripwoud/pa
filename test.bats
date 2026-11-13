@@ -67,6 +67,41 @@ setup() {
   [[ -n $output ]]
 }
 
+@test "insert stores password from stdin" {
+  printf 's3cr3t' | "$PA" insert piped 2>/dev/null
+  run "$PA" show piped
+  [[ $status -eq 0 ]]
+  [[ $output == "s3cr3t" ]]
+}
+
+@test "insert stores multiline input" {
+  printf 'pw\nuser: me\n' | "$PA" i multi 2>/dev/null
+  run "$PA" show multi
+  [[ $output == $'pw\nuser: me' ]]
+}
+
+@test "insert rejects empty stdin" {
+  run "$PA" insert empty </dev/null
+  [[ $status -ne 0 ]]
+  [[ $output == *"password can't be empty"* ]]
+  [[ ! -f "$PA_DIR/passwords/empty.age" ]]
+}
+
+@test "insert fails fast when stdin is a terminal" {
+  command -v script >/dev/null || skip "script not installed"
+  run script -qec "'$PA' insert ttyentry" /dev/null </dev/null
+  [[ $status -ne 0 ]]
+  [[ $output == *"reads the password from stdin"* ]]
+  [[ ! -f "$PA_DIR/passwords/ttyentry.age" ]]
+}
+
+@test "insert rejects existing entry" {
+  printf a | "$PA" insert dup 2>/dev/null
+  run "$PA" insert dup <<<b
+  [[ $status -ne 0 ]]
+  [[ $output == *"already exists"* ]]
+}
+
 # --- List ---
 
 @test "list shows all entries sorted" {
