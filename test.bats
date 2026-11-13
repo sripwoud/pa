@@ -305,3 +305,47 @@ setup() {
   [[ $status -ne 0 ]]
   [[ ! -e $marker ]]
 }
+
+# --- contrib/pa-pass ---
+
+@test "pa-pass migrates a pass store" {
+  local store="$BATS_TEST_TMPDIR/pass" bin="$BATS_TEST_TMPDIR/bin"
+  mkdir -p "$store/web" "$bin"
+  printf 'secret1\n' >"$store/top.gpg"
+  printf 'secret2\n' >"$store/web/my site.gpg"
+  ln -s "$PA" "$bin/pa"
+  cat >"$bin/gpg2" <<'EOF'
+#!/usr/bin/env bash
+cat "$2"
+EOF
+  chmod +x "$bin/gpg2"
+
+  PATH="$bin:$PATH" PASSWORD_STORE_DIR="$store" \
+    run "$BATS_TEST_DIRNAME/contrib/pa-pass"
+  [[ $status -eq 0 ]]
+  [[ $output == *"saved 'web/my site' to the store."* ]]
+  [[ $("$PA" show top) == secret1 ]]
+  [[ $("$PA" show "web/my site") == secret2 ]]
+}
+
+@test "pa-pass fails on a missing pass store" {
+  PASSWORD_STORE_DIR="$BATS_TEST_TMPDIR/nope" \
+    run "$BATS_TEST_DIRNAME/contrib/pa-pass"
+  [[ $status -eq 1 ]]
+  [[ $output == *"doesn't exist"* ]]
+}
+
+@test "pa-pass fails and leaves no entry when decryption fails" {
+  local store="$BATS_TEST_TMPDIR/pass" bin="$BATS_TEST_TMPDIR/bin"
+  mkdir -p "$store" "$bin"
+  printf 'secret\n' >"$store/broken.gpg"
+  ln -s "$PA" "$bin/pa"
+  printf '#!/usr/bin/env bash\nexit 2\n' >"$bin/gpg2"
+  chmod +x "$bin/gpg2"
+
+  PATH="$bin:$PATH" PASSWORD_STORE_DIR="$store" \
+    run "$BATS_TEST_DIRNAME/contrib/pa-pass"
+  [[ $status -eq 1 ]]
+  [[ $output == *"couldn't migrate 'broken'"* ]]
+  [[ ! -e "$PA_DIR/passwords/broken.age" ]]
+}
