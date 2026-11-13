@@ -349,3 +349,49 @@ EOF
   [[ $output == *"couldn't migrate 'broken'"* ]]
   [[ ! -e "$PA_DIR/passwords/broken.age" ]]
 }
+
+# --- completions ---
+
+complete_pa() {
+  local bin="${BATS_TEST_TMPDIR}/bin"
+  mkdir -p "${bin}"
+  ln -sf "${PA}" "${bin}/pa"
+  PATH="${bin}:${PATH}"
+  # shellcheck source=completions/pa.bash
+  source "${BATS_TEST_DIRNAME}/completions/pa.bash"
+  COMP_WORDS=("$@")
+  COMP_CWORD=$(($# - 1))
+  COMPREPLY=()
+  _pa
+}
+
+@test "completion lists commands" {
+  complete_pa pa a
+  [[ ${COMPREPLY[*]} == add ]]
+}
+
+@test "completion lists entries for show" {
+  printf y | "$PA" add web/site 2>/dev/null
+  printf y | "$PA" add top 2>/dev/null
+  complete_pa pa show w
+  [[ ${COMPREPLY[*]} == web/site ]]
+}
+
+@test "completion lists categories for meta" {
+  printf y | "$PA" add web/a 2>/dev/null
+  printf y | "$PA" add web/b 2>/dev/null
+  complete_pa pa meta ''
+  [[ ${COMPREPLY[*]} == web/ ]]
+}
+
+@test "completion lists otp entries for otp code" {
+  printf y | "$PA" add bank 2>/dev/null
+  printf y | "$PA" add bank-otp 2>/dev/null
+  complete_pa pa otp code b
+  [[ ${COMPREPLY[*]} == bank-otp ]]
+}
+
+@test "completion lists nothing past the last argument" {
+  complete_pa pa show x y || :
+  [[ ${#COMPREPLY[@]} -eq 0 ]]
+}
