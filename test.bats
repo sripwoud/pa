@@ -1,7 +1,6 @@
 #!/usr/bin/env bats
 # shellcheck disable=SC2154 # BATS_* variables are set by bats
 # shellcheck disable=SC2250 # bats idiom: bare $status, $output, $PA
-# shellcheck disable=SC2030,SC2031 # each @test runs in its own subshell
 bats_require_minimum_version 1.5.0
 
 setup() {
@@ -290,6 +289,7 @@ setup() {
 }
 
 @test "git tracking records commits when enabled" {
+  # shellcheck disable=SC2030 # each @test runs in its own subshell
   export PA_DIR="$BATS_TEST_TMPDIR/pa-git"
   unset PA_NOGIT
   "$PA" list >/dev/null 2>&1
@@ -355,18 +355,19 @@ EOF
     run "$BATS_TEST_DIRNAME/contrib/pa-pass"
   [[ $status -eq 1 ]]
   [[ $output == *"couldn't migrate 'broken'"* ]]
+  # shellcheck disable=SC2031 # each @test runs in its own subshell
   [[ ! -e "$PA_DIR/passwords/broken.age" ]]
 }
 
-# --- completions ---
+# --- Completions ---
 
 complete_pa() {
-  local bin="${BATS_TEST_TMPDIR}/bin"
-  mkdir -p "${bin}"
-  ln -sf "${PA}" "${bin}/pa"
-  PATH="${bin}:${PATH}"
+  local bin="$BATS_TEST_TMPDIR/bin"
+  mkdir -p "$bin"
+  ln -sf "$PA" "$bin/pa"
+  PATH="$bin:$PATH"
   # shellcheck source=completions/pa.bash
-  source "${BATS_TEST_DIRNAME}/completions/pa.bash"
+  source "$BATS_TEST_DIRNAME/completions/pa.bash"
   COMP_WORDS=("$@")
   COMP_CWORD=$(($# - 1))
   COMPREPLY=()

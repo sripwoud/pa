@@ -1,11 +1,5 @@
-#!/usr/bin/env bash
-#
 # Bash completion for pa.
 # shellcheck disable=SC2312 # a failing `pa list` should just yield no matches
-
-_pa_entries() {
-  pa list
-}
 
 _pa_otp_entries() {
   pa list | grep -- '-otp$'
@@ -16,12 +10,11 @@ _pa_categories() {
 }
 
 _pa_reply() {
-  mapfile -t COMPREPLY < <(compgen -W "$1" -- "${cur}")
+  mapfile -t COMPREPLY < <(compgen -W "$1" -- "${COMP_WORDS[COMP_CWORD]}")
 }
 
 _pa() {
   local cmd="${COMP_WORDS[1]}"
-  local cur="${COMP_WORDS[COMP_CWORD]}"
   local commands="add del edit git insert list move me meta show rand qr"
   commands+=" otp oi oc ou ov"
 
@@ -46,13 +39,13 @@ _pa() {
     esac
     ;;
   m | move)
-    ((COMP_CWORD <= 3)) && _pa_reply "$(_pa_entries)"
+    ((COMP_CWORD <= 3)) && _pa_reply "$(pa list)"
     ;;
   me | meta | l | list)
     ((COMP_CWORD == 2)) && _pa_reply "$(_pa_categories)"
     ;;
   d | del | e | edit | s | show | q | qr)
-    ((COMP_CWORD == 2)) && _pa_reply "$(_pa_entries)"
+    ((COMP_CWORD == 2)) && _pa_reply "$(pa list)"
     ;;
   *) ;;
   esac
