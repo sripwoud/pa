@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-set -o pipefail
 #
 # pa - a simple password manager
+
+set -o pipefail
 
 pw_add() {
   if yn "generate a password?"; then
@@ -21,7 +22,7 @@ pw_add() {
   fi
 
   mkdir -p "$(dirname "./${name}")" ||
-    die "couldn't create category '$(dirname "./${name}" | cut -c3-)'"
+    die "couldn't create category '${name%/*}'"
 
   # A heredoc is used here instead of a 'printf' to avoid
   # leaking the password through the '/proc' filesystem.
@@ -35,8 +36,9 @@ pw_add() {
 }
 
 pw_insert() {
+  local hint="pipe it in (e.g. 'pa rand | pa insert ${name}')"
   [[ -t 0 ]] &&
-    die "insert reads the password from stdin, pipe it in (e.g. 'pa rand | pa insert ${name}') or use 'pa add ${name}'"
+    die "insert reads the password from stdin, ${hint} or use 'pa add ${name}'"
 
   pass=$(cat) || die "couldn't read stdin"
 
@@ -44,7 +46,7 @@ pw_insert() {
     die "password can't be empty"
 
   mkdir -p "$(dirname "./${name}")" ||
-    die "couldn't create category '$(dirname "./${name}" | cut -c3-)'"
+    die "couldn't create category '${name%/*}'"
 
   encrypt "./${name}.age" <<-EOF
 		${pass}
@@ -82,13 +84,15 @@ pw_edit() {
 
   [[ -s "${tmpfile}" ]] && {
     mkdir -p "$(dirname "./${name}")" ||
-      die "couldn't create category '$(dirname "./${name}" | cut -c3-)'"
+      die "couldn't create category '${name%/*}'"
 
     encrypt "./${name}.age" "${tmpfile}"
 
     if ${new}; then printf '%s\n' "saved '${name}' to the store." >&2; fi
 
-    if ${git_enabled}; then git_add_and_commit "./${name}.age" "edit '${name}'"; fi
+    if ${git_enabled}; then
+      git_add_and_commit "./${name}.age" "edit '${name}'"
+    fi
   }
 }
 
@@ -98,7 +102,9 @@ pw_del() {
 
     rmdir -p "$(dirname "./${name}")" 2>/dev/null || :
 
-    if ${git_enabled}; then git_add_and_commit "./${name}.age" "delete '${name}'"; fi
+    if ${git_enabled}; then
+      git_add_and_commit "./${name}.age" "delete '${name}'"
+    fi
   }
 }
 
@@ -128,7 +134,7 @@ pw_list() {
 
 pw_meta() {
   mkdir -p "$(dirname "./${name}")" ||
-    die "couldn't create category '$(dirname "./${name}" | cut -c3-)'"
+    die "couldn't create category '${name%/*}'"
 
   tmpdir=/dev/shm
   [[ -w /dev/shm ]] || tmpdir=/tmp
@@ -149,12 +155,14 @@ pw_meta() {
 
   printf '%s\n' "saved meta '${name}' to the store." >&2
 
-  if ${git_enabled}; then git_add_and_commit "./${name}.age" "add meta '${name}'"; fi
+  if ${git_enabled}; then
+    git_add_and_commit "./${name}.age" "add meta '${name}'"
+  fi
 }
 
 pw_move() {
   mkdir -p "$(dirname "./${name}")" ||
-    die "couldn't create category '$(dirname "./${name}" | cut -c3-)'"
+    die "couldn't create category '${name%/*}'"
 
   mv -- "./${src}.age" "./${name}.age"
 
@@ -241,7 +249,9 @@ otp_insert() {
 
   printf '%s\n' "saved otp '${name}' to the store." >&2
 
-  if ${git_enabled}; then git_add_and_commit "./${name}.age" "add otp '${name}'"; fi
+  if ${git_enabled}; then
+    git_add_and_commit "./${name}.age" "add otp '${name}'"
+  fi
 }
 
 otp_code() {
@@ -271,7 +281,9 @@ otp_code() {
     [[ -n ${otp_issuer} ]] &&
       new_uri=$(printf '%s&issuer=%s' "${new_uri}" "${otp_issuer}")
     printf '%s\n' "${new_uri}" | encrypt "./${name}.age"
-    if ${git_enabled}; then git_add_and_commit "./${name}.age" "increment HOTP counter for '${name}'"; fi
+    if ${git_enabled}; then
+      git_add_and_commit "./${name}.age" "increment HOTP counter for '${name}'"
+    fi
     ;;
   *) die "unsupported OTP type: ${otp_type}" ;;
   esac
@@ -335,6 +347,7 @@ rand_chars() {
   # $1 = number of chars to receive
   # $2 = filter for the chars
   local result
+  # shellcheck disable=SC2312 # tr dies of SIGPIPE once read has $1 chars
   IFS= read -rN "$1" result < <(LC_ALL=C tr -dc "$2" </dev/urandom)
   printf '%s' "${result}"
 }
@@ -500,12 +513,15 @@ main() {
     name=$(printf %s "$*" | LC_ALL=C tr -d '[:cntrl:]')
     [[ -n ${name} ]] || die "meta: missing [name] argument"
     name="${name}/meta"
-    [[ ${name} == /* || ${name} == */ ]] && die "name can't start or end with '/'"
-    [[ ${name} == ../* || ${name} == */../* ]] && die "category went out of bounds"
+    [[ ${name} == /* || ${name} == */ ]] &&
+      die "name can't start or end with '/'"
+    [[ ${name} == ../* || ${name} == */../* ]] &&
+      die "category went out of bounds"
     [[ -f "./${name}.age" ]] && die "meta entry '${name}' already exists"
     pw_meta
     exit $?
     ;;
+  *) ;;
   esac
 
   [[ ${cmd} == @(m|move) ]] && {
@@ -516,7 +532,8 @@ main() {
 
   name=$(printf %s "$*" | LC_ALL=C tr -d '[:cntrl:]')
 
-  [[ ${cmd} == @(a|add|i|insert|d|del|e|edit|s|show|m|move) ]] && [[ -z ${name} ]] &&
+  [[ ${cmd} == @(a|add|i|insert|d|del|e|edit|s|show|m|move) ]] &&
+    [[ -z ${name} ]] &&
     die "${cmd}: missing [name] argument"
 
   [[ ${name} == /* || ${name} == */ ]] &&
@@ -593,7 +610,7 @@ set +x
 # only the current user.
 umask 077
 
-[[ $1 ]] || usage
+[[ -n $1 ]] || usage
 
 case $1 in
 -h | --help) usage ;;
@@ -601,6 +618,7 @@ case $1 in
   printf 'pa 0.1.0\n'
   exit 0
   ;;
+*) ;;
 esac
 
 main "$@"
