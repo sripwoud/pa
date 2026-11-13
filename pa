@@ -235,7 +235,10 @@ otp_parse_uri() {
     digits) otp_ref["digits"]="${value}" ;;
     algorithm) otp_ref["algorithm"]="${value^^}" ;;
     period) otp_ref["period"]="${value}" ;;
-    counter) otp_ref["counter"]="${value}" ;;
+    counter)
+      [[ ${value} =~ ^[0-9]+$ ]] || die "OTP URI counter must be a number"
+      otp_ref["counter"]="${value}"
+      ;;
     issuer) otp_ref["issuer"]="${value}" ;;
     *) ;;
     esac
@@ -285,7 +288,7 @@ otp_code() {
       die "oathtool failed"
     ;;
   hotp)
-    new_counter=$((otp[counter] + 1))
+    new_counter=$((10#${otp[counter]} + 1))
     code=$(oathtool --hotp -b --counter="${new_counter}" \
       "${otp[secret]}" --digits="${otp[digits]}") ||
       die "oathtool failed"

@@ -293,3 +293,15 @@ setup() {
   run git -C "$PA_DIR/passwords" log --oneline
   [[ $output == *"add 'gitentry'"* ]]
 }
+
+# --- OTP ---
+
+@test "otp rejects non-numeric HOTP counter without evaluating it" {
+  command -v oathtool >/dev/null || skip "oathtool not installed"
+  local marker="$BATS_TEST_TMPDIR/pwned"
+  printf 'otpauth://hotp/x?secret=JBSWY3DPEHPK3PXP&counter=a[$(touch %s)]\n' "$marker" |
+    "$PA" oi evil 2>/dev/null || :
+  run --separate-stderr "$PA" oc evil
+  [[ $status -ne 0 ]]
+  [[ ! -e $marker ]]
+}
