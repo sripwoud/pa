@@ -261,6 +261,16 @@ setup() {
   [[ ! -e $(<"$BATS_TEST_TMPDIR/tmppath") ]]
 }
 
+@test "edit removes temp file when EDITOR fails" {
+  local editor="$BATS_TEST_TMPDIR/editor"
+  printf '#!/bin/sh\nprintf %%s "$2" >"$1"\nexit 1\n' >"$editor"
+  chmod +x "$editor"
+  run --separate-stderr env EDITOR="$editor $BATS_TEST_TMPDIR/tmppath" "$PA" edit failing
+  [[ $status -ne 0 ]]
+  [[ $stderr == *"EDITOR exited non-zero"* ]]
+  [[ ! -e $(<"$BATS_TEST_TMPDIR/tmppath") ]]
+}
+
 @test "meta creates nested entry" {
   EDITOR=true "$PA" meta wallet/exodus 2>/dev/null
   [[ -f "$PA_DIR/passwords/wallet/exodus/meta.age" ]]
