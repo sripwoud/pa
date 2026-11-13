@@ -334,3 +334,18 @@ EOF
   [[ $status -eq 1 ]]
   [[ $output == *"doesn't exist"* ]]
 }
+
+@test "pa-pass fails and leaves no entry when decryption fails" {
+  local store="$BATS_TEST_TMPDIR/pass" bin="$BATS_TEST_TMPDIR/bin"
+  mkdir -p "$store" "$bin"
+  printf 'secret\n' >"$store/broken.gpg"
+  ln -s "$PA" "$bin/pa"
+  printf '#!/usr/bin/env bash\nexit 2\n' >"$bin/gpg2"
+  chmod +x "$bin/gpg2"
+
+  PATH="$bin:$PATH" PASSWORD_STORE_DIR="$store" \
+    run "$BATS_TEST_DIRNAME/contrib/pa-pass"
+  [[ $status -eq 1 ]]
+  [[ $output == *"couldn't migrate 'broken'"* ]]
+  [[ ! -e "$PA_DIR/passwords/broken.age" ]]
+}

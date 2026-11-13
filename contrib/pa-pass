@@ -31,15 +31,18 @@ main() {
 
   age=$(command -v age || command -v rage) || die "age or rage is required"
 
-  # shellcheck disable=SC2312 # store dir checked above
+  # shellcheck disable=SC2312 # find errors surface on stderr
   while IFS= read -rd '' passfile; do
     name=${passfile#"${PASSWORD_STORE_DIR}/"}
     name=${name%.gpg}
     dest=${PA_DIR}/passwords/${name}.age
     mkdir -p "${dest%/*}"
-    gpg2 -d "${passfile}" |
-      "${age}" -R "${PA_DIR}/recipients" -o "${dest}" &&
-      printf '%s\n' "saved '${name}' to the store."
+    if ! gpg2 -d "${passfile}" |
+      "${age}" -R "${PA_DIR}/recipients" -o "${dest}"; then
+      rm -f -- "${dest}"
+      die "couldn't migrate '${name}'"
+    fi
+    printf '%s\n' "saved '${name}' to the store."
   done < <(find "${PASSWORD_STORE_DIR}" -name '*.gpg' -print0)
 
   if [[ ! -v PA_NOGIT ]] && command -v git >/dev/null; then
