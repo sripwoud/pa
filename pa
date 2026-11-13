@@ -4,7 +4,13 @@
 
 set -o pipefail
 
+readonly VERSION='pa 0.1.0'
+readonly DEFAULT_LENGTH=50
+readonly DEFAULT_PATTERN='A-Za-z0-9-_'
+
 pw_add() {
+  local pass pass2
+
   if yn "generate a password?"; then
     pass=$(rand_chars "${PA_LENGTH}" "${PA_PATTERN}") ||
       die "couldn't generate a password"
@@ -16,13 +22,11 @@ pw_add() {
 
     sread pass2 "enter a password (again)"
 
-    # shellcheck disable=2154
     [[ ${pass} == "${pass2}" ]] ||
       die "passwords don't match"
   fi
 
-  mkdir -p "$(dirname "./${name}")" ||
-    die "couldn't create category '${name%/*}'"
+  mk_category "${name}"
 
   # A heredoc is used here instead of a 'printf' to avoid
   # leaking the password through the '/proc' filesystem.
@@ -32,10 +36,11 @@ pw_add() {
 
   printf '%s\n' "saved '${name}' to the store." >&2
 
-  if ${git_enabled}; then git_add_and_commit "./${name}.age" "add '${name}'"; fi
+  if ((git_enabled)); then git_add_and_commit "./${name}.age" "add '${name}'"; fi
 }
 
 pw_insert() {
+  local pass
   local hint="pipe it in (e.g. 'pa rand | pa insert ${name}')"
   [[ -t 0 ]] &&
     die "insert reads the password from stdin, ${hint} or use 'pa add ${name}'"
@@ -45,8 +50,7 @@ pw_insert() {
   [[ -n ${pass} ]] ||
     die "password can't be empty"
 
-  mkdir -p "$(dirname "./${name}")" ||
-    die "couldn't create category '${name%/*}'"
+  mk_category "${name}"
 
   encrypt "./${name}.age" <<-EOF
 		${pass}
@@ -54,56 +58,48 @@ pw_insert() {
 
   printf '%s\n' "saved '${name}' to the store." >&2
 
-  if ${git_enabled}; then git_add_and_commit "./${name}.age" "add '${name}'"; fi
+  if ((git_enabled)); then git_add_and_commit "./${name}.age" "add '${name}'"; fi
 }
 
+# Decrypt the entry (if any) into an in-memory temp file, open it in
+# EDITOR, and re-encrypt it unless the editor left the file empty.
 pw_edit() {
-  # Prefer /dev/shm because it's an in-memory
-  # space that we can use to store data without
-  # having bits laying around in sectors.
-  tmpdir=/dev/shm
-  # Fall back to /tmp - /dev/shm is Linux-only & /tmp
-  # and shared memory space on other operating systems
-  # have non-standard methods of setup/access.
-  [[ -w /dev/shm ]] || tmpdir=/tmp
+  local tmpfile
+  local is_new=0
 
-  tmpfile=$(mktemp "${tmpdir}/pa.XXXXXX") ||
-    die "couldn't create a shared memory file"
+  mk_tmpfile tmpfile
 
-  trap 'rm -f "$tmpfile"' EXIT
-
-  if [[ ! -f "${name}.age" ]]; then
-    new=true
-  else
-    new=false
+  if [[ -f "${name}.age" ]]; then
     decrypt -o "${tmpfile}" "./${name}.age"
+  else
+    is_new=1
   fi
 
-  ${EDITOR:-vi} "${tmpfile}" ||
-    die "EDITOR exited non-zero"
+  run_editor "${tmpfile}"
 
   [[ -s "${tmpfile}" ]] && {
-    mkdir -p "$(dirname "./${name}")" ||
-      die "couldn't create category '${name%/*}'"
+    mk_category "${name}"
 
     encrypt "./${name}.age" "${tmpfile}"
 
-    if ${new}; then printf '%s\n' "saved '${name}' to the store." >&2; fi
+    if ((is_new)); then printf '%s\n' "saved '${name}' to the store." >&2; fi
 
-    if ${git_enabled}; then
+    if ((git_enabled)); then
       git_add_and_commit "./${name}.age" "edit '${name}'"
     fi
   }
 }
 
 pw_del() {
+  local path="./${name}"
+
   yn "delete password '${name}'?" && {
-    rm -f "./${name}.age"
+    rm -f "${path}.age"
 
-    rmdir -p "$(dirname "./${name}")" 2>/dev/null || :
+    rmdir -p "${path%/*}" 2>/dev/null || :
 
-    if ${git_enabled}; then
-      git_add_and_commit "./${name}.age" "delete '${name}'"
+    if ((git_enabled)); then
+      git_add_and_commit "${path}.age" "delete '${name}'"
     fi
   }
 }
@@ -133,21 +129,15 @@ pw_list() {
 }
 
 pw_meta() {
-  mkdir -p "$(dirname "./${name}")" ||
-    die "couldn't create category '${name%/*}'"
+  local tmpfile
 
-  tmpdir=/dev/shm
-  [[ -w /dev/shm ]] || tmpdir=/tmp
+  mk_category "${name}"
 
-  tmpfile=$(mktemp "${tmpdir}/pa.XXXXXX") ||
-    die "couldn't create a shared memory file"
-
-  trap 'rm -f "$tmpfile"' EXIT
+  mk_tmpfile tmpfile
 
   printf '%s\n\n' "na" >"${tmpfile}"
 
-  ${EDITOR:-vi} +2 "${tmpfile}" ||
-    die "EDITOR exited non-zero"
+  run_editor +2 "${tmpfile}"
 
   [[ -s "${tmpfile}" ]] || die "empty meta entry, aborting"
 
@@ -155,34 +145,62 @@ pw_meta() {
 
   printf '%s\n' "saved meta '${name}' to the store." >&2
 
-  if ${git_enabled}; then
+  if ((git_enabled)); then
     git_add_and_commit "./${name}.age" "add meta '${name}'"
   fi
 }
 
 pw_move() {
-  mkdir -p "$(dirname "./${name}")" ||
-    die "couldn't create category '${name%/*}'"
+  local src_path="./${src}"
 
-  mv -- "./${src}.age" "./${name}.age"
+  mk_category "${name}"
 
-  rmdir -p "$(dirname "./${src}")" 2>/dev/null || :
+  mv -- "${src_path}.age" "./${name}.age"
 
-  if ${git_enabled}; then
-    git rm -q "./${src}.age"
+  rmdir -p "${src_path%/*}" 2>/dev/null || :
+
+  if ((git_enabled)); then
+    git rm -q "${src_path}.age"
     git_add_and_commit "./${name}.age" "move '${src}' to '${name}'"
   fi
+}
+
+mk_category() {
+  local path="./$1"
+  mkdir -p "${path%/*}" ||
+    die "couldn't create category '${1%/*}'"
+}
+
+# Create a temp file, preferring in-memory /dev/shm, store its path in
+# the variable named by $1, and remove it on exit.
+mk_tmpfile() {
+  local -n tmpfile_ref=$1
+  local dir=/dev/shm
+  [[ -w ${dir} ]] || dir=/tmp
+
+  tmpfile_ref=$(mktemp "${dir}/pa.XXXXXX") ||
+    die "couldn't create a shared memory file"
+
+  # shellcheck disable=SC2064 # expand now: the caller's local is gone at exit
+  trap "rm -f -- ${tmpfile_ref@Q}" EXIT
+}
+
+run_editor() {
+  local -a editor
+  read -ra editor <<<"${EDITOR:-vi}"
+  "${editor[@]}" "$@" ||
+    die "EDITOR exited non-zero"
 }
 
 encrypt() {
   local outfile="$1"
   shift
-  ${age} --encrypt -R "${recipients_file}" -o "${outfile}" "$@" ||
+  "${age}" --encrypt -R "${recipients_file}" -o "${outfile}" "$@" ||
     die "couldn't encrypt ${outfile}"
 }
 
 decrypt() {
-  ${age} --decrypt -i "${identities_file}" "$@" ||
+  "${age}" --decrypt -i "${identities_file}" "$@" ||
     die "decryption failed"
 }
 
@@ -191,50 +209,44 @@ otp_check_tools() {
     die "oathtool not found, install oath-toolkit"
 }
 
+# Parse an otpauth:// URI ($2) into the associative array named by $1:
+# type, label, secret, algorithm, digits, period, counter, issuer.
 otp_parse_uri() {
-  local uri rest query param key value
-
-  # shellcheck disable=2034
-  otp_uri="" otp_type="" otp_label="" otp_secret=""
-  # shellcheck disable=2034
-  otp_algorithm="SHA1" otp_digits="6" otp_period="30"
-  otp_counter="0" otp_issuer=""
-
-  uri="$1"
-  # shellcheck disable=2034
-  otp_uri="${uri}"
+  local -n otp_ref=$1
+  local uri=$2 rest query param value
+  local -a params
 
   [[ ${uri} == otpauth://* ]] ||
     die "invalid OTP URI: must start with otpauth://"
 
+  otp_ref=(["algorithm"]=SHA1 ["digits"]=6 ["period"]=30 ["counter"]=0 ["issuer"]="")
+
   rest="${uri#otpauth://}"
-  otp_type="${rest%%/*}"
+  otp_ref["type"]="${rest%%/*}"
   rest="${rest#*/}"
-  otp_label="${rest%%\?*}"
+  otp_ref["label"]="${rest%%\?*}"
   query="${rest#*\?}"
 
-  local -a params
   IFS='&' read -ra params <<<"${query}"
   for param in "${params[@]}"; do
-    key="${param%%=*}"
     value="${param#*=}"
-    # shellcheck disable=2034
-    case "${key}" in
-    secret) otp_secret="${value}" ;;
-    digits) otp_digits="${value}" ;;
-    algorithm) otp_algorithm="${value^^}" ;;
-    period) otp_period="${value}" ;;
-    counter) otp_counter="${value}" ;;
-    issuer) otp_issuer="${value}" ;;
+    case "${param%%=*}" in
+    secret) otp_ref["secret"]="${value}" ;;
+    digits) otp_ref["digits"]="${value}" ;;
+    algorithm) otp_ref["algorithm"]="${value^^}" ;;
+    period) otp_ref["period"]="${value}" ;;
+    counter) otp_ref["counter"]="${value}" ;;
+    issuer) otp_ref["issuer"]="${value}" ;;
     *) ;;
     esac
   done
 
-  [[ -n ${otp_secret} ]] || die "OTP URI missing secret"
+  [[ -n ${otp_ref["secret"]} ]] || die "OTP URI missing secret"
 }
 
 otp_insert() {
   local uri
+  local -A otp
 
   [[ -f ./${name}.age ]] && {
     yn "overwrite otp '${name}'?" || die "aborted"
@@ -243,19 +255,20 @@ otp_insert() {
   printf 'enter OTP URI: '
   read -r uri || die "no input"
 
-  otp_parse_uri "${uri}"
+  otp_parse_uri otp "${uri}"
 
   printf '%s\n' "${uri}" | encrypt "./${name}.age"
 
   printf '%s\n' "saved otp '${name}' to the store." >&2
 
-  if ${git_enabled}; then
+  if ((git_enabled)); then
     git_add_and_commit "./${name}.age" "add otp '${name}'"
   fi
 }
 
 otp_code() {
-  local uri otp_line otp_code new_counter new_uri
+  local uri otp_line code new_counter new_uri
+  local -A otp
 
   [[ -f ./${name}.age ]] || die "otp '${name}' doesn't exist"
 
@@ -263,32 +276,32 @@ otp_code() {
   otp_line=$(grep '^otpauth://' <<<"${uri}")
   [[ -n ${otp_line} ]] || die "no OTP URI found in '${name}'"
 
-  otp_parse_uri "${otp_line}"
+  otp_parse_uri otp "${otp_line}"
 
-  case "${otp_type}" in
+  case "${otp[type]}" in
   totp)
-    otp_code=$(oathtool --totp -b "${otp_secret}" \
-      --digits="${otp_digits}" --time-step-size="${otp_period}") ||
+    code=$(oathtool --totp -b "${otp[secret]}" \
+      --digits="${otp[digits]}" --time-step-size="${otp[period]}") ||
       die "oathtool failed"
     ;;
   hotp)
-    new_counter=$((otp_counter + 1))
-    otp_code=$(oathtool --hotp -b --counter="${new_counter}" \
-      "${otp_secret}" --digits="${otp_digits}") ||
+    new_counter=$((otp[counter] + 1))
+    code=$(oathtool --hotp -b --counter="${new_counter}" \
+      "${otp[secret]}" --digits="${otp[digits]}") ||
       die "oathtool failed"
     new_uri=$(printf 'otpauth://hotp/%s?secret=%s&counter=%s' \
-      "${otp_label}" "${otp_secret}" "${new_counter}")
-    [[ -n ${otp_issuer} ]] &&
-      new_uri=$(printf '%s&issuer=%s' "${new_uri}" "${otp_issuer}")
+      "${otp[label]}" "${otp[secret]}" "${new_counter}")
+    [[ -n ${otp[issuer]} ]] &&
+      new_uri=$(printf '%s&issuer=%s' "${new_uri}" "${otp[issuer]}")
     printf '%s\n' "${new_uri}" | encrypt "./${name}.age"
-    if ${git_enabled}; then
+    if ((git_enabled)); then
       git_add_and_commit "./${name}.age" "increment HOTP counter for '${name}'"
     fi
     ;;
-  *) die "unsupported OTP type: ${otp_type}" ;;
+  *) die "unsupported OTP type: ${otp[type]}" ;;
   esac
 
-  printf '%s\n' "${otp_code}"
+  printf '%s\n' "${code}"
 }
 
 otp_uri() {
@@ -304,7 +317,8 @@ otp_uri() {
 }
 
 otp_validate() {
-  otp_parse_uri "$1"
+  local -A otp
+  otp_parse_uri otp "$1"
   printf '%s\n' "valid OTP URI." >&2
 }
 
@@ -336,23 +350,22 @@ git_add_and_commit() {
     die "couldn't git commit $2"
 }
 
+# Print $1 random chars from the tr set $2, read from /dev/urandom.
+# See https://www.2uo.de/myths-about-urandom for urandom vs random.
 rand_chars() {
-  # Generate random characters by reading '/dev/urandom' with the
-  # 'tr' command to translate the random bytes into a
-  # configurable character set.
-  #
-  # Regarding usage of '/dev/urandom' instead of '/dev/random'.
-  # See: https://www.2uo.de/myths-about-urandom
-  #
-  # $1 = number of chars to receive
-  # $2 = filter for the chars
   local result
   # shellcheck disable=SC2312 # tr dies of SIGPIPE once read has $1 chars
   IFS= read -rN "$1" result < <(LC_ALL=C tr -dc "$2" </dev/urandom)
   printf '%s' "${result}"
 }
 
+sanitize_name() {
+  printf %s "$*" | LC_ALL=C tr -d '[:cntrl:]'
+}
+
 yn() {
+  local answer
+
   printf '%s [y/N]: ' "$1"
 
   read -rn1 answer
@@ -370,8 +383,12 @@ sread() {
   printf '\n'
 }
 
+err() {
+  printf '%s: %s.\n' "${0##*/}" "$1" >&2
+}
+
 die() {
-  printf '%s: %s.\n' "$(basename "$0")" "$1" >&2
+  err "$1"
   exit 1
 }
 
@@ -407,14 +424,37 @@ usage() {
 
   env vars:
     data directory:   export PA_DIR=~/.local/share/pa
-    password length:  export PA_LENGTH=50
-    password pattern: export PA_PATTERN=A-Za-z0-9-_
+    password length:  export PA_LENGTH=${DEFAULT_LENGTH}
+    password pattern: export PA_PATTERN=${DEFAULT_PATTERN}
     disable tracking: export PA_NOGIT=
 "
   exit 0
 }
 
 main() {
+  local age age_keygen identities_file recipients_file
+  local cmd otp_cmd name src
+  local git_enabled=0
+
+  # Ensure that debug mode is never enabled to
+  # prevent the password from leaking.
+  set +x
+
+  # Restrict permissions of any new files to
+  # only the current user.
+  umask 077
+
+  [[ -n $1 ]] || usage
+
+  case $1 in
+  -h | --help) usage ;;
+  -v | --version)
+    printf '%s\n' "${VERSION}"
+    return 0
+    ;;
+  *) ;;
+  esac
+
   age=$(command -v age || command -v rage) ||
     die "age not found, install per https://age-encryption.org"
 
@@ -422,8 +462,8 @@ main() {
     die "age-keygen not found, install per https://age-encryption.org"
 
   : "${PA_DIR:=${XDG_DATA_HOME:-${HOME}/.local/share}/pa}"
-  : "${PA_LENGTH:=50}"
-  : "${PA_PATTERN:=A-Za-z0-9-_}"
+  : "${PA_LENGTH:=${DEFAULT_LENGTH}}"
+  : "${PA_PATTERN:=${DEFAULT_PATTERN}}"
 
   [[ ${PA_DIR} == /* ]] ||
     die "PA_DIR must be an absolute path (got '${PA_DIR}')"
@@ -441,10 +481,9 @@ main() {
   # to avoid insecurities with word-splitting.
   set -f
 
-  git_enabled=false
-  [[ -z ${PA_NOGIT+x} ]] && command -v git >/dev/null 2>&1 && git_enabled=true
+  [[ -z ${PA_NOGIT+x} ]] && command -v git >/dev/null 2>&1 && git_enabled=1
 
-  ${git_enabled} && [[ ! -d .git ]] && {
+  ((git_enabled)) && [[ ! -d .git ]] && {
     git init -q
 
     # Put something in user config if it's not set globally,
@@ -468,38 +507,38 @@ main() {
 
   [[ ${cmd} == @(g|git) ]] && {
     git "$@"
-    exit $?
+    return
   }
 
   case ${cmd} in
   oi)
     otp_check_tools
-    name=$(printf %s "$*" | LC_ALL=C tr -d '[:cntrl:]')
+    name=$(sanitize_name "$@")
     otp_insert
-    exit $?
+    return
     ;;
   oc)
     otp_check_tools
-    name=$(printf %s "$*" | LC_ALL=C tr -d '[:cntrl:]')
+    name=$(sanitize_name "$@")
     otp_code
-    exit $?
+    return
     ;;
   ou)
     otp_check_tools
-    name=$(printf %s "$*" | LC_ALL=C tr -d '[:cntrl:]')
+    name=$(sanitize_name "$@")
     otp_uri
-    exit $?
+    return
     ;;
   ov)
     otp_check_tools
     otp_validate "$1"
-    exit $?
+    return
     ;;
   o | otp)
     otp_check_tools
     otp_cmd=$1
     shift
-    name=$(printf %s "$*" | LC_ALL=C tr -d '[:cntrl:]')
+    name=$(sanitize_name "$@")
     case ${otp_cmd} in
     i | insert) otp_insert ;;
     c | code) otp_code ;;
@@ -507,10 +546,10 @@ main() {
     v | validate) otp_validate "${name}" ;;
     *) otp_usage ;;
     esac
-    exit $?
+    return
     ;;
   me | meta)
-    name=$(printf %s "$*" | LC_ALL=C tr -d '[:cntrl:]')
+    name=$(sanitize_name "$@")
     [[ -n ${name} ]] || die "meta: missing [name] argument"
     name="${name}/meta"
     [[ ${name} == /* || ${name} == */ ]] &&
@@ -519,18 +558,18 @@ main() {
       die "category went out of bounds"
     [[ -f "./${name}.age" ]] && die "meta entry '${name}' already exists"
     pw_meta
-    exit $?
+    return
     ;;
   *) ;;
   esac
 
   [[ ${cmd} == @(m|move) ]] && {
-    src=$(printf %s "$1" | LC_ALL=C tr -d '[:cntrl:]')
+    src=$(sanitize_name "$1")
     [[ -n ${src} ]] || die "missing [src] argument"
     shift
   }
 
-  name=$(printf %s "$*" | LC_ALL=C tr -d '[:cntrl:]')
+  name=$(sanitize_name "$@")
 
   [[ ${cmd} == @(a|add|i|insert|d|del|e|edit|s|show|m|move) ]] &&
     [[ -z ${name} ]] &&
@@ -580,10 +619,10 @@ main() {
   fi
 
   [[ -f ${identities_file} ]] ||
-    ${age_keygen} -o "${identities_file}" 2>/dev/null
+    "${age_keygen}" -o "${identities_file}" 2>/dev/null
 
   [[ -f ${recipients_file} ]] ||
-    ${age_keygen} -y -o "${recipients_file}" "${identities_file}" 2>/dev/null
+    "${age_keygen}" -y -o "${recipients_file}" "${identities_file}" 2>/dev/null
 
   # Ensure that we leave the terminal in a usable state on Ctrl+C.
   [[ -t 0 ]] && trap 'trap - INT; kill -s INT 0' INT
@@ -601,24 +640,5 @@ main() {
   *) usage ;;
   esac
 }
-
-# Ensure that debug mode is never enabled to
-# prevent the password from leaking.
-set +x
-
-# Restrict permissions of any new files to
-# only the current user.
-umask 077
-
-[[ -n $1 ]] || usage
-
-case $1 in
--h | --help) usage ;;
--v | --version)
-  printf 'pa 0.1.0\n'
-  exit 0
-  ;;
-*) ;;
-esac
 
 main "$@"
