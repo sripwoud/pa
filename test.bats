@@ -1,4 +1,6 @@
 #!/usr/bin/env bats
+# shellcheck disable=SC2154 # BATS_* variables are set by bats
+# shellcheck disable=SC2250 # bats idiom: bare $status, $output, $PA
 bats_require_minimum_version 1.5.0
 
 setup() {
@@ -253,6 +255,7 @@ setup() {
 
 @test "edit honors EDITOR with arguments" {
   local editor="$BATS_TEST_TMPDIR/editor"
+  # shellcheck disable=SC2016 # literal script body for the fake editor
   printf '#!/bin/sh\nprintf %%s "$2" >"$1"\nprintf edited >"$2"\n' >"$editor"
   chmod +x "$editor"
   EDITOR="$editor $BATS_TEST_TMPDIR/tmppath" "$PA" edit spaced 2>/dev/null
@@ -263,6 +266,7 @@ setup() {
 
 @test "edit removes temp file when EDITOR fails" {
   local editor="$BATS_TEST_TMPDIR/editor"
+  # shellcheck disable=SC2016 # literal script body for the fake editor
   printf '#!/bin/sh\nprintf %%s "$2" >"$1"\nexit 1\n' >"$editor"
   chmod +x "$editor"
   run --separate-stderr env EDITOR="$editor $BATS_TEST_TMPDIR/tmppath" "$PA" edit failing
@@ -285,6 +289,7 @@ setup() {
 }
 
 @test "git tracking records commits when enabled" {
+  # shellcheck disable=SC2030 # each @test runs in its own subshell
   export PA_DIR="$BATS_TEST_TMPDIR/pa-git"
   unset PA_NOGIT
   "$PA" list >/dev/null 2>&1
@@ -299,6 +304,7 @@ setup() {
 @test "otp rejects non-numeric HOTP counter without evaluating it" {
   command -v oathtool >/dev/null || skip "oathtool not installed"
   local marker="$BATS_TEST_TMPDIR/pwned"
+  # shellcheck disable=SC2016 # literal payload must not expand here
   printf 'otpauth://hotp/x?secret=JBSWY3DPEHPK3PXP&counter=a[$(touch %s)]\n' "$marker" |
     "$PA" oi evil 2>/dev/null || :
   run --separate-stderr "$PA" oc evil
@@ -324,8 +330,10 @@ EOF
     run "$BATS_TEST_DIRNAME/contrib/pa-pass"
   [[ $status -eq 0 ]]
   [[ $output == *"saved 'web/my site' to the store."* ]]
-  [[ $("$PA" show top) == secret1 ]]
-  [[ $("$PA" show "web/my site") == secret2 ]]
+  run "$PA" show top
+  [[ $output == secret1 ]]
+  run "$PA" show "web/my site"
+  [[ $output == secret2 ]]
 }
 
 @test "pa-pass fails on a missing pass store" {
@@ -347,5 +355,52 @@ EOF
     run "$BATS_TEST_DIRNAME/contrib/pa-pass"
   [[ $status -eq 1 ]]
   [[ $output == *"couldn't migrate 'broken'"* ]]
+  # shellcheck disable=SC2031 # each @test runs in its own subshell
   [[ ! -e "$PA_DIR/passwords/broken.age" ]]
+}
+
+# --- Completions ---
+
+complete_pa() {
+  local bin="$BATS_TEST_TMPDIR/bin"
+  mkdir -p "$bin"
+  ln -sf "$PA" "$bin/pa"
+  PATH="$bin:$PATH"
+  # shellcheck source=completions/pa.bash
+  source "$BATS_TEST_DIRNAME/completions/pa.bash"
+  COMP_WORDS=("$@")
+  COMP_CWORD=$(($# - 1))
+  COMPREPLY=()
+  _pa
+}
+
+@test "completion lists commands" {
+  complete_pa pa a
+  [[ ${COMPREPLY[*]} == add ]]
+}
+
+@test "completion lists entries for show" {
+  printf y | "$PA" add web/site 2>/dev/null
+  printf y | "$PA" add top 2>/dev/null
+  complete_pa pa show w
+  [[ ${COMPREPLY[*]} == web/site ]]
+}
+
+@test "completion lists categories for meta" {
+  printf y | "$PA" add web/a 2>/dev/null
+  printf y | "$PA" add web/b 2>/dev/null
+  complete_pa pa meta ''
+  [[ ${COMPREPLY[*]} == web/ ]]
+}
+
+@test "completion lists otp entries for otp code" {
+  printf y | "$PA" add bank 2>/dev/null
+  printf y | "$PA" add bank-otp 2>/dev/null
+  complete_pa pa otp code b
+  [[ ${COMPREPLY[*]} == bank-otp ]]
+}
+
+@test "completion lists nothing past the last argument" {
+  complete_pa pa show x y || :
+  [[ ${#COMPREPLY[@]} -eq 0 ]]
 }
