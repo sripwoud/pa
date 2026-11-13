@@ -150,13 +150,13 @@ setup() {
 # --- Rand ---
 
 @test "rand generates password of default length" {
-  run "$PA" rand
+  run --separate-stderr "$PA" rand
   [[ $status -eq 0 ]]
   [[ ${#output} -eq 50 ]]
 }
 
 @test "rand respects custom length" {
-  run "$PA" rand 20
+  run --separate-stderr "$PA" rand 20
   [[ $status -eq 0 ]]
   [[ ${#output} -eq 20 ]]
 }
