@@ -5,54 +5,54 @@ set -o pipefail
 
 pw_add() {
   if yn "generate a password?"; then
-    pass=$(rand_chars "$PA_LENGTH" "$PA_PATTERN") ||
+    pass=$(rand_chars "${PA_LENGTH}" "${PA_PATTERN}") ||
       die "couldn't generate a password"
   else
     sread pass "enter a password"
 
-    [[ -n $pass ]] ||
+    [[ -n ${pass} ]] ||
       die "password can't be empty"
 
     sread pass2 "enter a password (again)"
 
     # shellcheck disable=2154
-    [[ $pass == "$pass2" ]] ||
+    [[ ${pass} == "${pass2}" ]] ||
       die "passwords don't match"
   fi
 
-  mkdir -p "$(dirname "./$name")" ||
-    die "couldn't create category '$(dirname "./$name" | cut -c3-)'"
+  mkdir -p "$(dirname "./${name}")" ||
+    die "couldn't create category '$(dirname "./${name}" | cut -c3-)'"
 
   # A heredoc is used here instead of a 'printf' to avoid
   # leaking the password through the '/proc' filesystem.
-  encrypt "./$name.age" <<-EOF
-		$pass
+  encrypt "./${name}.age" <<-EOF
+		${pass}
 	EOF
 
-  printf '%s\n' "saved '$name' to the store." >&2
+  printf '%s\n' "saved '${name}' to the store." >&2
 
-  if $git_enabled; then git_add_and_commit "./$name.age" "add '$name'"; fi
+  if ${git_enabled}; then git_add_and_commit "./${name}.age" "add '${name}'"; fi
 }
 
 pw_insert() {
   [[ -t 0 ]] &&
-    die "insert reads the password from stdin, pipe it in (e.g. 'pa rand | pa insert $name') or use 'pa add $name'"
+    die "insert reads the password from stdin, pipe it in (e.g. 'pa rand | pa insert ${name}') or use 'pa add ${name}'"
 
   pass=$(cat) || die "couldn't read stdin"
 
-  [[ -n $pass ]] ||
+  [[ -n ${pass} ]] ||
     die "password can't be empty"
 
-  mkdir -p "$(dirname "./$name")" ||
-    die "couldn't create category '$(dirname "./$name" | cut -c3-)'"
+  mkdir -p "$(dirname "./${name}")" ||
+    die "couldn't create category '$(dirname "./${name}" | cut -c3-)'"
 
-  encrypt "./$name.age" <<-EOF
-		$pass
+  encrypt "./${name}.age" <<-EOF
+		${pass}
 	EOF
 
-  printf '%s\n' "saved '$name' to the store." >&2
+  printf '%s\n' "saved '${name}' to the store." >&2
 
-  if $git_enabled; then git_add_and_commit "./$name.age" "add '$name'"; fi
+  if ${git_enabled}; then git_add_and_commit "./${name}.age" "add '${name}'"; fi
 }
 
 pw_edit() {
@@ -70,50 +70,50 @@ pw_edit() {
 
   trap 'rm -f "$tmpfile"' EXIT
 
-  if [[ ! -f "$name.age" ]]; then
+  if [[ ! -f "${name}.age" ]]; then
     new=true
   else
     new=false
-    decrypt -o "$tmpfile" "./$name.age"
+    decrypt -o "${tmpfile}" "./${name}.age"
   fi
 
-  ${EDITOR:-vi} "$tmpfile" ||
+  ${EDITOR:-vi} "${tmpfile}" ||
     die "EDITOR exited non-zero"
 
-  [[ -s "$tmpfile" ]] && {
-    mkdir -p "$(dirname "./$name")" ||
-      die "couldn't create category '$(dirname "./$name" | cut -c3-)'"
+  [[ -s "${tmpfile}" ]] && {
+    mkdir -p "$(dirname "./${name}")" ||
+      die "couldn't create category '$(dirname "./${name}" | cut -c3-)'"
 
-    encrypt "./$name.age" "$tmpfile"
+    encrypt "./${name}.age" "${tmpfile}"
 
-    if $new; then printf '%s\n' "saved '$name' to the store." >&2; fi
+    if ${new}; then printf '%s\n' "saved '${name}' to the store." >&2; fi
 
-    if $git_enabled; then git_add_and_commit "./$name.age" "edit '$name'"; fi
+    if ${git_enabled}; then git_add_and_commit "./${name}.age" "edit '${name}'"; fi
   }
 }
 
 pw_del() {
-  yn "delete password '$name'?" && {
-    rm -f "./$name.age"
+  yn "delete password '${name}'?" && {
+    rm -f "./${name}.age"
 
-    rmdir -p "$(dirname "./$name")" 2>/dev/null || :
+    rmdir -p "$(dirname "./${name}")" 2>/dev/null || :
 
-    if $git_enabled; then git_add_and_commit "./$name.age" "delete '$name'"; fi
+    if ${git_enabled}; then git_add_and_commit "./${name}.age" "delete '${name}'"; fi
   }
 }
 
 pw_rand() {
   local password
-  password=$(rand_chars "${1:-$PA_LENGTH}" "${2:-$PA_PATTERN}")
-  printf '%s\n' "$password"
+  password=$(rand_chars "${1:-${PA_LENGTH}}" "${2:-${PA_PATTERN}}")
+  printf '%s\n' "${password}"
   if command -v xclip >/dev/null 2>&1; then
-    printf '%s' "$password" | xclip -selection clipboard
+    printf '%s' "${password}" | xclip -selection clipboard
     printf '%s\n' "password copied to clipboard" >&2
   fi
 }
 
 pw_show() {
-  decrypt "./$name.age"
+  decrypt "./${name}.age"
 }
 
 pw_qr() {
@@ -122,13 +122,13 @@ pw_qr() {
 
 pw_list() {
   local dir="."
-  [[ -n $name ]] && dir="./$name"
-  find "$dir" -type f -name \*.age | sed 's|^\./||;s/\.age$//' | sort
+  [[ -n ${name} ]] && dir="./${name}"
+  find "${dir}" -type f -name \*.age | sed 's|^\./||;s/\.age$//' | sort
 }
 
 pw_meta() {
-  mkdir -p "$(dirname "./$name")" ||
-    die "couldn't create category '$(dirname "./$name" | cut -c3-)'"
+  mkdir -p "$(dirname "./${name}")" ||
+    die "couldn't create category '$(dirname "./${name}" | cut -c3-)'"
 
   tmpdir=/dev/shm
   [[ -w /dev/shm ]] || tmpdir=/tmp
@@ -138,43 +138,43 @@ pw_meta() {
 
   trap 'rm -f "$tmpfile"' EXIT
 
-  printf '%s\n\n' "na" >"$tmpfile"
+  printf '%s\n\n' "na" >"${tmpfile}"
 
-  ${EDITOR:-vi} +2 "$tmpfile" ||
+  ${EDITOR:-vi} +2 "${tmpfile}" ||
     die "EDITOR exited non-zero"
 
-  [[ -s "$tmpfile" ]] || die "empty meta entry, aborting"
+  [[ -s "${tmpfile}" ]] || die "empty meta entry, aborting"
 
-  encrypt "./$name.age" "$tmpfile"
+  encrypt "./${name}.age" "${tmpfile}"
 
-  printf '%s\n' "saved meta '$name' to the store." >&2
+  printf '%s\n' "saved meta '${name}' to the store." >&2
 
-  if $git_enabled; then git_add_and_commit "./$name.age" "add meta '$name'"; fi
+  if ${git_enabled}; then git_add_and_commit "./${name}.age" "add meta '${name}'"; fi
 }
 
 pw_move() {
-  mkdir -p "$(dirname "./$name")" ||
-    die "couldn't create category '$(dirname "./$name" | cut -c3-)'"
+  mkdir -p "$(dirname "./${name}")" ||
+    die "couldn't create category '$(dirname "./${name}" | cut -c3-)'"
 
-  mv -- "./$src.age" "./$name.age"
+  mv -- "./${src}.age" "./${name}.age"
 
-  rmdir -p "$(dirname "./$src")" 2>/dev/null || :
+  rmdir -p "$(dirname "./${src}")" 2>/dev/null || :
 
-  if $git_enabled; then
-    git rm -q "./$src.age"
-    git_add_and_commit "./$name.age" "move '$src' to '$name'"
+  if ${git_enabled}; then
+    git rm -q "./${src}.age"
+    git_add_and_commit "./${name}.age" "move '${src}' to '${name}'"
   fi
 }
 
 encrypt() {
   local outfile="$1"
   shift
-  $age --encrypt -R "$recipients_file" -o "$outfile" "$@" ||
-    die "couldn't encrypt $outfile"
+  ${age} --encrypt -R "${recipients_file}" -o "${outfile}" "$@" ||
+    die "couldn't encrypt ${outfile}"
 }
 
 decrypt() {
-  $age --decrypt -i "$identities_file" "$@" ||
+  ${age} --decrypt -i "${identities_file}" "$@" ||
     die "decryption failed"
 }
 
@@ -194,9 +194,9 @@ otp_parse_uri() {
 
   uri="$1"
   # shellcheck disable=2034
-  otp_uri="$uri"
+  otp_uri="${uri}"
 
-  [[ $uri == otpauth://* ]] ||
+  [[ ${uri} == otpauth://* ]] ||
     die "invalid OTP URI: must start with otpauth://"
 
   rest="${uri#otpauth://}"
@@ -206,89 +206,89 @@ otp_parse_uri() {
   query="${rest#*\?}"
 
   local -a params
-  IFS='&' read -ra params <<< "$query"
+  IFS='&' read -ra params <<<"${query}"
   for param in "${params[@]}"; do
     key="${param%%=*}"
     value="${param#*=}"
     # shellcheck disable=2034
-    case "$key" in
-    secret) otp_secret="$value" ;;
-    digits) otp_digits="$value" ;;
+    case "${key}" in
+    secret) otp_secret="${value}" ;;
+    digits) otp_digits="${value}" ;;
     algorithm) otp_algorithm="${value^^}" ;;
-    period) otp_period="$value" ;;
-    counter) otp_counter="$value" ;;
-    issuer) otp_issuer="$value" ;;
+    period) otp_period="${value}" ;;
+    counter) otp_counter="${value}" ;;
+    issuer) otp_issuer="${value}" ;;
     *) ;;
     esac
   done
 
-  [[ -n $otp_secret ]] || die "OTP URI missing secret"
+  [[ -n ${otp_secret} ]] || die "OTP URI missing secret"
 }
 
 otp_insert() {
   local uri
 
-  [[ -f ./$name.age ]] && {
-    yn "overwrite otp '$name'?" || die "aborted"
+  [[ -f ./${name}.age ]] && {
+    yn "overwrite otp '${name}'?" || die "aborted"
   }
 
   printf 'enter OTP URI: '
   read -r uri || die "no input"
 
-  otp_parse_uri "$uri"
+  otp_parse_uri "${uri}"
 
-  printf '%s\n' "$uri" | encrypt "./$name.age"
+  printf '%s\n' "${uri}" | encrypt "./${name}.age"
 
-  printf '%s\n' "saved otp '$name' to the store." >&2
+  printf '%s\n' "saved otp '${name}' to the store." >&2
 
-  if $git_enabled; then git_add_and_commit "./$name.age" "add otp '$name'"; fi
+  if ${git_enabled}; then git_add_and_commit "./${name}.age" "add otp '${name}'"; fi
 }
 
 otp_code() {
   local uri otp_line otp_code new_counter new_uri
 
-  [[ -f ./$name.age ]] || die "otp '$name' doesn't exist"
+  [[ -f ./${name}.age ]] || die "otp '${name}' doesn't exist"
 
-  uri=$(decrypt "./$name.age")
-  otp_line=$(grep '^otpauth://' <<<"$uri")
-  [[ -n $otp_line ]] || die "no OTP URI found in '$name'"
+  uri=$(decrypt "./${name}.age")
+  otp_line=$(grep '^otpauth://' <<<"${uri}")
+  [[ -n ${otp_line} ]] || die "no OTP URI found in '${name}'"
 
-  otp_parse_uri "$otp_line"
+  otp_parse_uri "${otp_line}"
 
-  case "$otp_type" in
+  case "${otp_type}" in
   totp)
-    otp_code=$(oathtool --totp -b "$otp_secret" \
-      --digits="$otp_digits" --time-step-size="$otp_period") ||
+    otp_code=$(oathtool --totp -b "${otp_secret}" \
+      --digits="${otp_digits}" --time-step-size="${otp_period}") ||
       die "oathtool failed"
     ;;
   hotp)
     new_counter=$((otp_counter + 1))
-    otp_code=$(oathtool --hotp -b --counter="$new_counter" \
-      "$otp_secret" --digits="$otp_digits") ||
+    otp_code=$(oathtool --hotp -b --counter="${new_counter}" \
+      "${otp_secret}" --digits="${otp_digits}") ||
       die "oathtool failed"
     new_uri=$(printf 'otpauth://hotp/%s?secret=%s&counter=%s' \
-      "$otp_label" "$otp_secret" "$new_counter")
-    [[ -n $otp_issuer ]] &&
-      new_uri=$(printf '%s&issuer=%s' "$new_uri" "$otp_issuer")
-    printf '%s\n' "$new_uri" | encrypt "./$name.age"
-    if $git_enabled; then git_add_and_commit "./$name.age" "increment HOTP counter for '$name'"; fi
+      "${otp_label}" "${otp_secret}" "${new_counter}")
+    [[ -n ${otp_issuer} ]] &&
+      new_uri=$(printf '%s&issuer=%s' "${new_uri}" "${otp_issuer}")
+    printf '%s\n' "${new_uri}" | encrypt "./${name}.age"
+    if ${git_enabled}; then git_add_and_commit "./${name}.age" "increment HOTP counter for '${name}'"; fi
     ;;
-  *) die "unsupported OTP type: $otp_type" ;;
+  *) die "unsupported OTP type: ${otp_type}" ;;
   esac
 
-  printf '%s\n' "$otp_code"
+  printf '%s\n' "${otp_code}"
 }
 
 otp_uri() {
   local uri otp_line
 
-  [[ -f ./$name.age ]] || die "otp '$name' doesn't exist"
+  [[ -f ./${name}.age ]] || die "otp '${name}' doesn't exist"
 
-  uri=$(decrypt "./$name.age")
-  otp_line=$(grep '^otpauth://' <<<"$uri")
-  [[ -n $otp_line ]] || die "no OTP URI found in '$name'"
+  uri=$(decrypt "./${name}.age")
+  otp_line=$(grep '^otpauth://' <<<"${uri}")
+  [[ -n ${otp_line} ]] || die "no OTP URI found in '${name}'"
 
-  printf '%s\n' "$otp_line"
+  printf '%s\n' "${otp_line}"
 }
 
 otp_validate() {
@@ -336,7 +336,7 @@ rand_chars() {
   # $2 = filter for the chars
   local result
   IFS= read -rN "$1" result < <(LC_ALL=C tr -dc "$2" </dev/urandom)
-  printf '%s' "$result"
+  printf '%s' "${result}"
 }
 
 yn() {
@@ -344,9 +344,9 @@ yn() {
 
   read -rn1 answer
 
-  printf '%s\n' "$answer"
+  printf '%s\n' "${answer}"
 
-  [[ $answer == [yY] ]]
+  [[ ${answer} == [yY] ]]
 }
 
 sread() {
@@ -408,20 +408,20 @@ main() {
   age_keygen=$(command -v age-keygen || command -v rage-keygen) ||
     die "age-keygen not found, install per https://age-encryption.org"
 
-  : "${PA_DIR:=${XDG_DATA_HOME:-$HOME/.local/share}/pa}"
+  : "${PA_DIR:=${XDG_DATA_HOME:-${HOME}/.local/share}/pa}"
   : "${PA_LENGTH:=50}"
   : "${PA_PATTERN:=A-Za-z0-9-_}"
 
-  [[ $PA_DIR == /* ]] ||
-    die "PA_DIR must be an absolute path (got '$PA_DIR')"
+  [[ ${PA_DIR} == /* ]] ||
+    die "PA_DIR must be an absolute path (got '${PA_DIR}')"
 
-  identities_file=$PA_DIR/identities
-  recipients_file=$PA_DIR/recipients
+  identities_file=${PA_DIR}/identities
+  recipients_file=${PA_DIR}/recipients
 
-  mkdir -p "$PA_DIR/passwords" ||
+  mkdir -p "${PA_DIR}/passwords" ||
     die "couldn't create pa directories"
 
-  cd "$PA_DIR/passwords" ||
+  cd "${PA_DIR}/passwords" ||
     die "couldn't change to password directory"
 
   # Ensure that globbing is disabled
@@ -431,7 +431,7 @@ main() {
   git_enabled=false
   [[ -z ${PA_NOGIT+x} ]] && command -v git >/dev/null 2>&1 && git_enabled=true
 
-  $git_enabled && [[ ! -d .git ]] && {
+  ${git_enabled} && [[ ! -d .git ]] && {
     git init -q
 
     # Put something in user config if it's not set globally,
@@ -442,7 +442,7 @@ main() {
     # Configure diff driver for age encrypted files that treats them as
     # binary and decrypts them when a human-readable diff is requested.
     git config diff.age.binary true
-    git config diff.age.textconv "$age --decrypt -i '$identities_file'"
+    git config diff.age.textconv "${age} --decrypt -i '${identities_file}'"
 
     # Assign this diff driver to all passwords.
     printf '%s\n' '*.age diff=age' >.gitattributes
@@ -453,12 +453,12 @@ main() {
   cmd=$1
   shift
 
-  [[ $cmd == @(g|git) ]] && {
+  [[ ${cmd} == @(g|git) ]] && {
     git "$@"
     exit $?
   }
 
-  case $cmd in
+  case ${cmd} in
   oi)
     otp_check_tools
     name=$(printf %s "$*" | LC_ALL=C tr -d '[:cntrl:]')
@@ -482,105 +482,105 @@ main() {
     otp_validate "$1"
     exit $?
     ;;
-  o|otp)
+  o | otp)
     otp_check_tools
     otp_cmd=$1
     shift
     name=$(printf %s "$*" | LC_ALL=C tr -d '[:cntrl:]')
-    case $otp_cmd in
-    i|insert) otp_insert ;;
-    c|code) otp_code ;;
-    u|uri) otp_uri ;;
-    v|validate) otp_validate "$name" ;;
+    case ${otp_cmd} in
+    i | insert) otp_insert ;;
+    c | code) otp_code ;;
+    u | uri) otp_uri ;;
+    v | validate) otp_validate "${name}" ;;
     *) otp_usage ;;
     esac
     exit $?
     ;;
-  me|meta)
+  me | meta)
     name=$(printf %s "$*" | LC_ALL=C tr -d '[:cntrl:]')
-    [[ -n $name ]] || die "meta: missing [name] argument"
-    name="$name/meta"
-    [[ $name == /* || $name == */ ]] && die "name can't start or end with '/'"
-    [[ $name == ../* || $name == */../* ]] && die "category went out of bounds"
-    [[ -f "./$name.age" ]] && die "meta entry '$name' already exists"
+    [[ -n ${name} ]] || die "meta: missing [name] argument"
+    name="${name}/meta"
+    [[ ${name} == /* || ${name} == */ ]] && die "name can't start or end with '/'"
+    [[ ${name} == ../* || ${name} == */../* ]] && die "category went out of bounds"
+    [[ -f "./${name}.age" ]] && die "meta entry '${name}' already exists"
     pw_meta
     exit $?
     ;;
   esac
 
-  [[ $cmd == @(m|move) ]] && {
+  [[ ${cmd} == @(m|move) ]] && {
     src=$(printf %s "$1" | LC_ALL=C tr -d '[:cntrl:]')
-    [[ -n $src ]] || die "missing [src] argument"
+    [[ -n ${src} ]] || die "missing [src] argument"
     shift
   }
 
   name=$(printf %s "$*" | LC_ALL=C tr -d '[:cntrl:]')
 
-  [[ $cmd == @(a|add|i|insert|d|del|e|edit|s|show|m|move) ]] && [[ -z $name ]] &&
-    die "$cmd: missing [name] argument"
+  [[ ${cmd} == @(a|add|i|insert|d|del|e|edit|s|show|m|move) ]] && [[ -z ${name} ]] &&
+    die "${cmd}: missing [name] argument"
 
-  [[ $name == /* || $name == */ ]] &&
+  [[ ${name} == /* || ${name} == */ ]] &&
     die "name can't start or end with '/'"
 
-  [[ $name == ../* || $name == */../* ]] &&
+  [[ ${name} == ../* || ${name} == */../* ]] &&
     die "category went out of bounds"
 
-  [[ $cmd == @(m|move) ]] && [[ $src == /* || $src == */ ]] &&
+  [[ ${cmd} == @(m|move) ]] && [[ ${src} == /* || ${src} == */ ]] &&
     die "move: source can't start or end with '/'"
 
-  [[ $cmd == @(m|move) ]] && [[ $src == ../* || $src == */../* ]] &&
+  [[ ${cmd} == @(m|move) ]] && [[ ${src} == ../* || ${src} == */../* ]] &&
     die "move: source category went out of bounds"
 
-  [[ $cmd == @(m|move) ]] && [[ ! -f ./$src.age ]] &&
-    die "password '$src' doesn't exist"
+  [[ ${cmd} == @(m|move) ]] && [[ ! -f ./${src}.age ]] &&
+    die "password '${src}' doesn't exist"
 
-  [[ $cmd == @(a|add|i|insert|m|move) ]] && [[ -f $name.age ]] &&
-    die "password '$name' already exists"
+  [[ ${cmd} == @(a|add|i|insert|m|move) ]] && [[ -f ${name}.age ]] &&
+    die "password '${name}' already exists"
 
-  [[ $cmd == @(d|del|s|show) ]] && [[ ! -f $name.age ]] &&
-    die "password '$name' doesn't exist"
+  [[ ${cmd} == @(d|del|s|show) ]] && [[ ! -f ${name}.age ]] &&
+    die "password '${name}' doesn't exist"
 
-  [[ $cmd == @(l|list) ]] && [[ -n $name ]] && [[ ! -d ./$name ]] &&
-    die "category '$name' doesn't exist"
+  [[ ${cmd} == @(l|list) ]] && [[ -n ${name} ]] && [[ ! -d ./${name} ]] &&
+    die "category '${name}' doesn't exist"
 
-  [[ $cmd == @(l|list) ]] && [[ $name == /* ]] &&
+  [[ ${cmd} == @(l|list) ]] && [[ ${name} == /* ]] &&
     die "category can't start with '/'"
 
   if command -v age-plugin-yubikey >/dev/null 2>&1; then
-    [[ ! -f $identities_file ]] && [[ ! -f $recipients_file ]] && {
+    [[ ! -f ${identities_file} ]] && [[ ! -f ${recipients_file} ]] && {
       yn "generate yubikey identity?" && {
         age-plugin-yubikey \
           --generate \
           --name "pa identity" \
           --pin-policy never \
-          --touch-policy always >"$identities_file" ||
+          --touch-policy always >"${identities_file}" ||
           die 'failed to generate YubiKey identity file'
 
-        age-plugin-yubikey -l >"$recipients_file" ||
+        age-plugin-yubikey -l >"${recipients_file}" ||
           die 'failed to generate YubiKey recipients file'
       }
     }
   fi
 
-  [[ -f $identities_file ]] ||
-    $age_keygen -o "$identities_file" 2>/dev/null
+  [[ -f ${identities_file} ]] ||
+    ${age_keygen} -o "${identities_file}" 2>/dev/null
 
-  [[ -f $recipients_file ]] ||
-    $age_keygen -y -o "$recipients_file" "$identities_file" 2>/dev/null
+  [[ -f ${recipients_file} ]] ||
+    ${age_keygen} -y -o "${recipients_file}" "${identities_file}" 2>/dev/null
 
   # Ensure that we leave the terminal in a usable state on Ctrl+C.
   [[ -t 0 ]] && trap 'trap - INT; kill -s INT 0' INT
 
-  case $cmd in
-  a|add) pw_add ;;
-  d|del) pw_del ;;
-  e|edit) pw_edit ;;
-  i|insert) pw_insert ;;
-  l|list) pw_list ;;
-  m|move) pw_move ;;
-  s|show) pw_show ;;
-  r|rand) pw_rand "$@" ;;
-  q|qr) pw_qr ;;
+  case ${cmd} in
+  a | add) pw_add ;;
+  d | del) pw_del ;;
+  e | edit) pw_edit ;;
+  i | insert) pw_insert ;;
+  l | list) pw_list ;;
+  m | move) pw_move ;;
+  s | show) pw_show ;;
+  r | rand) pw_rand "$@" ;;
+  q | qr) pw_qr ;;
   *) usage ;;
   esac
 }
@@ -596,8 +596,11 @@ umask 077
 [[ $1 ]] || usage
 
 case $1 in
-  -h|--help) usage ;;
-  -v|--version) printf 'pa 0.1.0\n'; exit 0 ;;
+-h | --help) usage ;;
+-v | --version)
+  printf 'pa 0.1.0\n'
+  exit 0
+  ;;
 esac
 
 main "$@"
