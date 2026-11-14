@@ -345,6 +345,30 @@ otp_usage() {
   exit 0
 }
 
+init_keys() {
+  if command -v age-plugin-yubikey >/dev/null 2>&1; then
+    [[ ! -f ${identities_file} ]] && [[ ! -f ${recipients_file} ]] && {
+      yn "generate yubikey identity?" && {
+        age-plugin-yubikey \
+          --generate \
+          --name "pa identity" \
+          --pin-policy never \
+          --touch-policy always >"${identities_file}" ||
+          die 'failed to generate YubiKey identity file'
+
+        age-plugin-yubikey -l >"${recipients_file}" ||
+          die 'failed to generate YubiKey recipients file'
+      }
+    }
+  fi
+
+  [[ -f ${identities_file} ]] ||
+    "${age_keygen}" -o "${identities_file}" 2>/dev/null
+
+  [[ -f ${recipients_file} ]] ||
+    "${age_keygen}" -y -o "${recipients_file}" "${identities_file}" 2>/dev/null
+}
+
 git_add_and_commit() {
   git add "$1" ||
     die "couldn't git add $1"
@@ -364,7 +388,11 @@ rand_chars() {
 }
 
 sanitize_name() {
-  printf %s "$*" | LC_ALL=C tr -d '[:cntrl:]'
+  local -n sanitized_ref=$1
+  local LC_ALL=C
+  shift
+  sanitized_ref=$*
+  sanitized_ref=${sanitized_ref//[[:cntrl:]]/}
 }
 
 yn() {
@@ -438,7 +466,7 @@ usage() {
 main() {
   local age age_keygen identities_file recipients_file
   local cmd otp_cmd name src
-  local git_enabled=0
+  local git_enabled=0 read_only=0
 
   # Ensure that debug mode is never enabled to
   # prevent the password from leaking.
@@ -462,9 +490,6 @@ main() {
   age=$(command -v age || command -v rage) ||
     die "age not found, install per https://age-encryption.org"
 
-  age_keygen=$(command -v age-keygen || command -v rage-keygen) ||
-    die "age-keygen not found, install per https://age-encryption.org"
-
   : "${PA_DIR:=${XDG_DATA_HOME:-${HOME}/.local/share}/pa}"
   : "${PA_LENGTH:=${DEFAULT_LENGTH}}"
   : "${PA_PATTERN:=${DEFAULT_PATTERN}}"
@@ -475,8 +500,18 @@ main() {
   identities_file=${PA_DIR}/identities
   recipients_file=${PA_DIR}/recipients
 
-  mkdir -p "${PA_DIR}/passwords" ||
-    die "couldn't create pa directories"
+  [[ $1 == @(s|show|l|list|q|qr|oc|ou) ||
+    ($1 == @(o|otp) && $2 == @(c|code|u|uri)) ]] &&
+    [[ -d ${PA_DIR}/passwords && -f ${identities_file} && -f ${recipients_file} ]] &&
+    read_only=1
+
+  ((read_only)) || {
+    age_keygen=$(command -v age-keygen || command -v rage-keygen) ||
+      die "age-keygen not found, install per https://age-encryption.org"
+
+    mkdir -p "${PA_DIR}/passwords" ||
+      die "couldn't create pa directories"
+  }
 
   cd "${PA_DIR}/passwords" ||
     die "couldn't change to password directory"
@@ -486,6 +521,8 @@ main() {
   set -f
 
   [[ -z ${PA_NOGIT+x} ]] && command -v git >/dev/null 2>&1 && git_enabled=1
+
+  ((read_only)) && [[ ! -d .git ]] && git_enabled=0
 
   ((git_enabled)) && [[ ! -d .git ]] && {
     git init -q
@@ -517,19 +554,19 @@ main() {
   case ${cmd} in
   oi)
     otp_check_tools
-    name=$(sanitize_name "$@")
+    sanitize_name name "$@"
     otp_insert
     return
     ;;
   oc)
     otp_check_tools
-    name=$(sanitize_name "$@")
+    sanitize_name name "$@"
     otp_code
     return
     ;;
   ou)
     otp_check_tools
-    name=$(sanitize_name "$@")
+    sanitize_name name "$@"
     otp_uri
     return
     ;;
@@ -542,7 +579,7 @@ main() {
     otp_check_tools
     otp_cmd=$1
     shift
-    name=$(sanitize_name "$@")
+    sanitize_name name "$@"
     case ${otp_cmd} in
     i | insert) otp_insert ;;
     c | code) otp_code ;;
@@ -553,7 +590,7 @@ main() {
     return
     ;;
   me | meta)
-    name=$(sanitize_name "$@")
+    sanitize_name name "$@"
     [[ -n ${name} ]] || die "meta: missing [name] argument"
     name="${name}/meta"
     [[ ${name} == /* || ${name} == */ ]] &&
@@ -568,12 +605,12 @@ main() {
   esac
 
   [[ ${cmd} == @(m|move) ]] && {
-    src=$(sanitize_name "$1")
+    sanitize_name src "$1"
     [[ -n ${src} ]] || die "missing [src] argument"
     shift
   }
 
-  name=$(sanitize_name "$@")
+  sanitize_name name "$@"
 
   [[ ${cmd} == @(a|add|i|insert|d|del|e|edit|s|show|m|move) ]] &&
     [[ -z ${name} ]] &&
@@ -606,27 +643,7 @@ main() {
   [[ ${cmd} == @(l|list) ]] && [[ ${name} == /* ]] &&
     die "category can't start with '/'"
 
-  if command -v age-plugin-yubikey >/dev/null 2>&1; then
-    [[ ! -f ${identities_file} ]] && [[ ! -f ${recipients_file} ]] && {
-      yn "generate yubikey identity?" && {
-        age-plugin-yubikey \
-          --generate \
-          --name "pa identity" \
-          --pin-policy never \
-          --touch-policy always >"${identities_file}" ||
-          die 'failed to generate YubiKey identity file'
-
-        age-plugin-yubikey -l >"${recipients_file}" ||
-          die 'failed to generate YubiKey recipients file'
-      }
-    }
-  fi
-
-  [[ -f ${identities_file} ]] ||
-    "${age_keygen}" -o "${identities_file}" 2>/dev/null
-
-  [[ -f ${recipients_file} ]] ||
-    "${age_keygen}" -y -o "${recipients_file}" "${identities_file}" 2>/dev/null
+  ((read_only)) || init_keys
 
   # Ensure that we leave the terminal in a usable state on Ctrl+C.
   [[ -t 0 ]] && trap 'trap - INT; kill -s INT 0' INT

@@ -44,6 +44,34 @@ setup() {
   [[ -d "$PA_DIR/passwords" ]]
 }
 
+@test "read-only commands don't git init an existing store" {
+  printf y | "$PA" add entry 2>/dev/null
+  # shellcheck disable=SC2031 # each @test runs in its own subshell
+  unset PA_NOGIT
+  "$PA" show entry >/dev/null
+  "$PA" list >/dev/null
+  [[ ! -e "$PA_DIR/passwords/.git" ]]
+}
+
+@test "names have control characters stripped and keep UTF-8" {
+  printf secret | "$PA" insert $'ca\tf\x7f\x01\xc3\xa9' 2>/dev/null
+  [[ -f "$PA_DIR/passwords/café.age" ]]
+  run "$PA" show $'caf\x1b\xc3\xa9'
+  [[ $output == secret ]]
+}
+
+@test "hotp code works on a store created without git" {
+  command -v oathtool >/dev/null || skip "oathtool not installed"
+  printf 'otpauth://hotp/h?secret=GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ&counter=0\n' |
+    "$PA" oi h 2>/dev/null
+  # shellcheck disable=SC2031 # each @test runs in its own subshell
+  unset PA_NOGIT
+  run --separate-stderr "$PA" oc h
+  [[ $status -eq 0 ]]
+  [[ $output == 287082 ]]
+  [[ ! -e "$PA_DIR/passwords/.git" ]]
+}
+
 # --- Add and Show ---
 
 @test "add creates encrypted entry" {
