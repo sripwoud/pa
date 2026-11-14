@@ -339,6 +339,24 @@ setup() {
   [[ ! -e $marker ]]
 }
 
+@test "otp code keeps the secret off oathtool's command line" {
+  local real bin="$BATS_TEST_TMPDIR/bin" secret=GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ
+  real=$(command -v oathtool) || skip "oathtool not installed"
+  mkdir -p "$bin"
+  # shellcheck disable=SC2016 # literal script body for the stub
+  printf '#!/usr/bin/env bash\nfor a; do [[ $a == *%s* ]] && exit 99; done\nexec %q "$@"\n' \
+    "$secret" "$real" >"$bin/oathtool"
+  chmod +x "$bin/oathtool"
+  printf 'otpauth://hotp/h?secret=%s&counter=0\n' "$secret" | "$PA" oi h 2>/dev/null
+  printf 'otpauth://totp/t?secret=%s\n' "$secret" | "$PA" oi t 2>/dev/null
+  PATH="$bin:$PATH" run --separate-stderr "$PA" oc h
+  [[ $status -eq 0 ]]
+  [[ $output == 287082 ]]
+  PATH="$bin:$PATH" run --separate-stderr "$PA" oc t
+  [[ $status -eq 0 ]]
+  [[ $output =~ ^[0-9]{6}$ ]]
+}
+
 # --- contrib/pa-pass ---
 
 @test "pa-pass migrates a pass store" {
