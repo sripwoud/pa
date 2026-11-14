@@ -386,8 +386,6 @@ rand_chars() {
   printf '%s' "${result}"
 }
 
-# Join $2.. with spaces, strip control bytes, and store the result in
-# the variable named by $1.
 sanitize_name() {
   local -n sanitized_ref=$1
   local LC_ALL=C
@@ -501,10 +499,9 @@ main() {
   identities_file=${PA_DIR}/identities
   recipients_file=${PA_DIR}/recipients
 
-  # Read-only commands on an initialized store skip first-run setup.
   [[ $1 == @(s|show|l|list|q|qr|oc|ou) ||
     ($1 == @(o|otp) && $2 == @(c|code|u|uri)) ]] &&
-    [[ -d ${PA_DIR}/passwords && -f ${identities_file} ]] &&
+    [[ -d ${PA_DIR}/passwords && -f ${identities_file} && -f ${recipients_file} ]] &&
     read_only=1
 
   ((read_only)) || {
