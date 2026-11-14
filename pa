@@ -283,14 +283,14 @@ otp_code() {
 
   case "${otp[type]}" in
   totp)
-    code=$(oathtool --totp -b "${otp[secret]}" \
-      --digits="${otp[digits]}" --time-step-size="${otp[period]}") ||
+    code=$(oathtool --totp -b - --digits="${otp[digits]}" \
+      --time-step-size="${otp[period]}" <<<"${otp[secret]}") ||
       die "oathtool failed"
     ;;
   hotp)
     new_counter=$((10#${otp[counter]} + 1))
-    code=$(oathtool --hotp -b --counter="${new_counter}" \
-      "${otp[secret]}" --digits="${otp[digits]}") ||
+    code=$(oathtool --hotp -b --counter="${new_counter}" - \
+      --digits="${otp[digits]}" <<<"${otp[secret]}") ||
       die "oathtool failed"
     new_uri=$(printf 'otpauth://hotp/%s?secret=%s&counter=%s' \
       "${otp[label]}" "${otp[secret]}" "${new_counter}")
