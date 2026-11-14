@@ -163,6 +163,33 @@ setup() {
   [[ ${#output} -eq 20 ]]
 }
 
+@test "rand rejects invalid PA_LENGTH" {
+  for len in 0 -1 abc; do
+    PA_LENGTH=$len run --separate-stderr "$PA" rand
+    [[ $status -ne 0 ]]
+    [[ -z $output ]]
+    [[ $stderr == *"invalid length"* ]]
+  done
+}
+
+@test "rand rejects invalid explicit length" {
+  for len in 0 -1 abc; do
+    run --separate-stderr "$PA" rand "$len"
+    [[ $status -ne 0 ]]
+    [[ -z $output ]]
+    [[ $stderr == *"invalid length"* ]]
+  done
+}
+
+@test "add with generated password rejects invalid PA_LENGTH" {
+  for len in 0 -1 abc; do
+    PA_LENGTH=$len run --separate-stderr "$PA" add "gen$len" <<<y
+    [[ $status -ne 0 ]]
+    [[ $stderr == *"invalid length"* ]]
+    [[ ! -e "$PA_DIR/passwords/gen$len.age" ]]
+  done
+}
+
 # --- Validation errors ---
 
 @test "add rejects duplicate entry" {

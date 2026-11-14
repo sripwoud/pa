@@ -12,8 +12,7 @@ pw_add() {
   local pass pass2
 
   if yn "generate a password?"; then
-    pass=$(rand_chars "${PA_LENGTH}" "${PA_PATTERN}") ||
-      die "couldn't generate a password"
+    pass=$(rand_chars "${PA_LENGTH}" "${PA_PATTERN}") || exit
   else
     sread pass "enter a password"
 
@@ -106,7 +105,7 @@ pw_del() {
 
 pw_rand() {
   local password
-  password=$(rand_chars "${1:-${PA_LENGTH}}" "${2:-${PA_PATTERN}}")
+  password=$(rand_chars "${1:-${PA_LENGTH}}" "${2:-${PA_PATTERN}}") || exit
   printf '%s\n' "${password}"
   if command -v xclip >/dev/null 2>&1; then
     printf '%s' "${password}" | xclip -selection clipboard
@@ -357,6 +356,7 @@ git_add_and_commit() {
 # See https://www.2uo.de/myths-about-urandom for urandom vs random.
 rand_chars() {
   local result
+  [[ $1 =~ ^[1-9][0-9]*$ ]] || die "invalid length '$1', expected a positive integer"
   # shellcheck disable=SC2312 # tr dies of SIGPIPE once read has $1 chars
   IFS= read -rN "$1" result < <(LC_ALL=C tr -dc "$2" </dev/urandom)
   printf '%s' "${result}"
