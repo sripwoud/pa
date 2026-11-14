@@ -357,6 +357,26 @@ setup() {
   [[ $output =~ ^[0-9]{6}$ ]]
 }
 
+@test "otp insert saves a piped URI" {
+  command -v oathtool >/dev/null || skip "oathtool not installed"
+  printf 'otpauth://totp/x?secret=JBSWY3DPEHPK3PXP\n' | "$PA" oi piped 2>/dev/null
+  run "$PA" show piped
+  [[ $output == "otpauth://totp/x?secret=JBSWY3DPEHPK3PXP" ]]
+}
+
+@test "otp insert hides the URI typed at a terminal" {
+  command -v oathtool >/dev/null || skip "oathtool not installed"
+  command -v script >/dev/null || skip "script not installed"
+  # shellcheck disable=SC2312 # delay lets read -s disable echo before input arrives
+  run script -E always -qec "'$PA' oi ttyotp" /dev/null < <(
+    sleep 0.5 && printf 'otpauth://totp/x?secret=JBSWY3DPEHPK3PXP\n'
+  )
+  [[ $status -eq 0 ]]
+  [[ $output != *JBSWY3DPEHPK3PXP* ]]
+  run "$PA" show ttyotp
+  [[ $output == "otpauth://totp/x?secret=JBSWY3DPEHPK3PXP" ]]
+}
+
 # --- contrib/pa-pass ---
 
 @test "pa-pass migrates a pass store" {

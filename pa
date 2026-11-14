@@ -255,7 +255,8 @@ otp_insert() {
   }
 
   printf 'enter OTP URI: '
-  read -r uri || die "no input"
+  read -rs uri || die "no input"
+  printf '\n'
 
   otp_parse_uri otp "${uri}"
 
