@@ -53,6 +53,13 @@ setup() {
   [[ ! -e "$PA_DIR/passwords/.git" ]]
 }
 
+@test "names have control characters stripped and keep UTF-8" {
+  printf secret | "$PA" insert $'ca\tf\x7f\x01\xc3\xa9' 2>/dev/null
+  [[ -f "$PA_DIR/passwords/café.age" ]]
+  run "$PA" show $'caf\x1b\xc3\xa9'
+  [[ $output == secret ]]
+}
+
 @test "hotp code works on a store created without git" {
   command -v oathtool >/dev/null || skip "oathtool not installed"
   printf 'otpauth://hotp/h?secret=GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ&counter=0\n' |

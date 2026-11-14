@@ -386,8 +386,14 @@ rand_chars() {
   printf '%s' "${result}"
 }
 
+# Join $2.. with spaces, strip control bytes, and store the result in
+# the variable named by $1.
 sanitize_name() {
-  printf %s "$*" | LC_ALL=C tr -d '[:cntrl:]'
+  local -n sanitized_ref=$1
+  local LC_ALL=C
+  shift
+  sanitized_ref=$*
+  sanitized_ref=${sanitized_ref//[[:cntrl:]]/}
 }
 
 yn() {
@@ -550,19 +556,19 @@ main() {
   case ${cmd} in
   oi)
     otp_check_tools
-    name=$(sanitize_name "$@")
+    sanitize_name name "$@"
     otp_insert
     return
     ;;
   oc)
     otp_check_tools
-    name=$(sanitize_name "$@")
+    sanitize_name name "$@"
     otp_code
     return
     ;;
   ou)
     otp_check_tools
-    name=$(sanitize_name "$@")
+    sanitize_name name "$@"
     otp_uri
     return
     ;;
@@ -575,7 +581,7 @@ main() {
     otp_check_tools
     otp_cmd=$1
     shift
-    name=$(sanitize_name "$@")
+    sanitize_name name "$@"
     case ${otp_cmd} in
     i | insert) otp_insert ;;
     c | code) otp_code ;;
@@ -586,7 +592,7 @@ main() {
     return
     ;;
   me | meta)
-    name=$(sanitize_name "$@")
+    sanitize_name name "$@"
     [[ -n ${name} ]] || die "meta: missing [name] argument"
     name="${name}/meta"
     [[ ${name} == /* || ${name} == */ ]] &&
@@ -601,12 +607,12 @@ main() {
   esac
 
   [[ ${cmd} == @(m|move) ]] && {
-    src=$(sanitize_name "$1")
+    sanitize_name src "$1"
     [[ -n ${src} ]] || die "missing [src] argument"
     shift
   }
 
-  name=$(sanitize_name "$@")
+  sanitize_name name "$@"
 
   [[ ${cmd} == @(a|add|i|insert|d|del|e|edit|s|show|m|move) ]] &&
     [[ -z ${name} ]] &&
