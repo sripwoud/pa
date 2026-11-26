@@ -260,7 +260,8 @@ otp_insert() {
 
   otp_parse_uri otp "${uri}"
 
-  printf '%s\n' "${uri}" | encrypt "./${name}.age"
+  mk_category "${name}"
+  encrypt "./${name}.age" <<<"${uri}"
 
   printf '%s\n' "saved otp '${name}' to the store." >&2
 
@@ -296,7 +297,7 @@ otp_code() {
       "${otp[label]}" "${otp[secret]}" "${new_counter}")
     [[ -n ${otp[issuer]} ]] &&
       new_uri=$(printf '%s&issuer=%s' "${new_uri}" "${otp[issuer]}")
-    printf '%s\n' "${new_uri}" | encrypt "./${name}.age"
+    encrypt "./${name}.age" <<<"${new_uri}"
     if ((git_enabled)); then
       git_add_and_commit "./${name}.age" "increment HOTP counter for '${name}'"
     fi

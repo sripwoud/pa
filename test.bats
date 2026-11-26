@@ -392,6 +392,20 @@ setup() {
   [[ $output == "otpauth://totp/x?secret=JBSWY3DPEHPK3PXP" ]]
 }
 
+@test "otp insert creates a new category" {
+  command -v oathtool >/dev/null || skip "oathtool not installed"
+  printf 'otpauth://totp/x?secret=JBSWY3DPEHPK3PXP\n' | "$PA" oi work/gh 2>/dev/null
+  run "$PA" show work/gh
+  [[ $output == "otpauth://totp/x?secret=JBSWY3DPEHPK3PXP" ]]
+}
+
+@test "otp insert fails when encryption fails" {
+  command -v oathtool >/dev/null || skip "oathtool not installed"
+  rm "$BATS_TEST_TMPDIR/pa/recipients"
+  run -1 "$PA" oi broken <<<'otpauth://totp/x?secret=JBSWY3DPEHPK3PXP'
+  [[ $output != *"saved otp"* ]]
+}
+
 @test "otp insert hides the URI typed at a terminal" {
   command -v oathtool >/dev/null || skip "oathtool not installed"
   command -v script >/dev/null || skip "script not installed"
